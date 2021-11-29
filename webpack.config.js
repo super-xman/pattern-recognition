@@ -2,7 +2,7 @@ const { resolve } = require('path');
 const HtmlWebpackPlugin = require('html-webpack-plugin');
 
 module.exports = {
-    entry: './src/index.tsx?',
+    entry: './src/index.ts',
     output: {
         filename: 'built.js',
         path: resolve(__dirname, 'dist'),
