@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+    <script src="math.min.js"></script>
+</head>
+<body>
+    <div class="test" style="margin: 10px 10px; padding-top: 100px; padding-bottom:100px; background: pink; width:100px; height:100px">合.</div>
+    <script>
+        function norm_vec(v1, v2){
+            var mat = math.cross(v1, v2);
+            var den = math.norm(mat) + 1e-6;
+            return math.divide(mat, den); 
+        }
+
+        function get_orth_joints(data, std=[0,5,17]){
+            var num_joints = math.size(data)[0];
+            var [p1, p2, p3] = [data[std[0]], data[std[1]], data[std[2]]];
+            var sub31 = math.subtract(p3, p1);
+            var vy = math.divide(sub31, math.norm(sub31) + 1e-6);
+            var v_x = math.subtract(p2, p1);
+            var vz = norm_vec(v_x, vy);
+            var vx = norm_vec(vy, vz);
+
+            var u_z = vz;
+            var u_y = norm_vec(vz, [1,0,0]);
+            var u_x = math.cross(u_y, u_z);
+            var R1 = [math.concat(u_x, [0]), math.concat(u_y, [0]), math.concat(u_z, [0]), [0,0,0,1]]
+
+            vx = math.multiply(R1, math.concat(vx, [1]));
+            var cos = vx[0];
+            var sin = -vx[1];
+            var R2 = [[cos,-sin,0,0], [sin,cos,0,0], [0,0,1,0], [0,0,0,1]];
+
+            var tran = math.multiply(R2, R1);
+            p1 = math.multiply(tran, math.concat(p1, [1]));
+            T = [[1,0,0,-p1[0]], [0,1,0,-p1[1]], [0,0,1,-p1[2]], [0,0,0,1]];
+            tran = math.multiply(T, tran);
+
+            var forth_rol = math.ones(num_joints, 1);
+            var joints = math.transpose(math.concat(data, forth_rol, 1));
+            var orth_joints = math.transpose(math.multiply(tran, joints));
+
+            return [orth_joints, tran];
+        }
+    </script>
+</body>
+</html>
