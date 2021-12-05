@@ -1,5 +1,8 @@
 // import * as math from "../public/math.min";
 import * as math from "mathjs";
+import Camera from "../public/camera_utils";
+import {Hands, HAND_CONNECTIONS} from "../public/hands";
+import {drawConnectors, drawLandmarks} from "../public/drawing_utils";
 
 function norm_vec<T extends math.Matrix | math.MathArray>(v1: T, v2: T): T{
     var mat = math.cross(v1, v2);
@@ -46,11 +49,50 @@ function get_orth_joints(data: number[][], std = [0,5,17]): math.Matrix{
 // let res: math.Matrix = get_orth_joints(data);
 // console.log(res);
 
-function download(filename: string, content:string, contentType?:string) {
-    if (!contentType) contentType = 'application/octet-stream';
-    var a = document.createElement('a');
-    var blob = new Blob([content]);
-    a.href = window.URL.createObjectURL(blob);
-    a.download = filename;
-    a.click();
+// function download(filename: string, content:string, contentType?:string) {
+//     if (!contentType) contentType = 'application/octet-stream';
+//     var a = document.createElement('a');
+//     var blob = new Blob([content]);
+//     a.href = window.URL.createObjectURL(blob);
+//     a.download = filename;
+//     a.click();
+// }
+const videoElement = document.getElementsByClassName('input_video')[0];
+const canvasElement = document.getElementsByClassName('output_canvas')[0] as HTMLCanvasElement;
+const canvasCtx = canvasElement.getContext('2d');
+
+function onResults(results: { image: any; multiHandLandmarks: any; }) {
+  canvasCtx.save();
+  canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
+  canvasCtx.drawImage(
+      results.image, 0, 0, canvasElement.width, canvasElement.height);
+  if (results.multiHandLandmarks) {
+    for (const landmarks of results.multiHandLandmarks) {
+      drawConnectors(canvasCtx, landmarks, HAND_CONNECTIONS,
+                     {color: '#00FF00', lineWidth: 5});
+      drawLandmarks(canvasCtx, landmarks, {color: '#FF0000', lineWidth: 2});
+    }
+  }
+  canvasCtx.restore();
 }
+
+const hands = new Hands({locateFile: (file: string) => {
+  return `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`;
+}});
+hands.setOptions({
+  maxNumHands: 2,
+  modelComplexity: 1,
+  minDetectionConfidence: 0.5,
+  minTrackingConfidence: 0.5
+});
+hands.onResults(onResults);
+
+const camera = new Camera(videoElement, {
+  onFrame: async () => {
+    await hands.send({image: videoElement});
+  },
+  width: 1280,
+  height: 720
+});
+camera.start();
+
