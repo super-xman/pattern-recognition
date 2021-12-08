@@ -1,7 +1,7 @@
 // import * as math from "../public/math.min";
 import Camera from "../public/camera_utils";
 import {Hands} from "../public/hands";
-import { render, Results, Joints } from "./render_utils";
+import { createCtx2D, createCtx3D, Results, Joints } from "./render_utils";
 
 const videoElement = document.getElementsByClassName('input_video')[0];
 
@@ -27,7 +27,7 @@ hands.setOptions({
 
 function render2D() {
   const onResults = (results: Results) => {
-    render('2d')(results);
+    createCtx2D(1280,720)(results);
   }
   hands.onResults(onResults);
 }
@@ -38,6 +38,7 @@ function render3D() {
     // todo
   }
   hands.onResults(onResults);
-  render('3d')(joints: Joints);
+  createCtx3D()(joints);
+  console.log(joints)
 }
-
+render3D();
