@@ -1,7 +1,7 @@
 // import * as math from "../public/math.min";
 import Camera from "../public/camera_utils";
 import {Hands} from "../public/hands";
-import { createCtx2D, createCtx3D, Results, Joints } from "./render_utils";
+import { createCtx2D, createCtx3D, OringinResults, RefinedResults } from "./render_utils";
 
 const videoElement = document.getElementsByClassName('input_video')[0];
 
@@ -26,19 +26,53 @@ hands.setOptions({
 });
 
 function render2D() {
-  const onResults = (results: Results) => {
-    createCtx2D(1280,720)(results);
+  const render = createCtx2D(1280,720);
+  const onResults = (results: OringinResults) => {
+    render(results);
   }
   hands.onResults(onResults);
 }
 
+class CurrentResults implements RefinedResults {
+  leftLandmarks: number[][];
+  rightLandmarks: number[][];
+  isLeftHandCaptured: boolean;
+  isRightHandCaptured: boolean;
+
+  private strategies = [
+    function(_results: OringinResults){
+      this.isLeftHandCaptured = false;
+      this.isRightHandCaptured = false;
+    },
+    function(results: OringinResults){
+      let landmarks = results.multiHandLandmarks[0].map((joint) => Object.values(joint));
+      this.isLeftHandCaptured = results.multiHandedness[0].label === "Left";
+      this.isRightHandCaptured = !this.isLeftHandCaptured;
+      this.leftLandmarks = this.isLeftHandCaptured && landmarks;
+      this.rightLandmarks = this.isRightHandCaptured && landmarks;
+    },
+    function(results: OringinResults){
+      let landmarks1 = results.multiHandLandmarks[0].map((joint) => Object.values(joint));
+      let landmarks2 = results.multiHandLandmarks[1].map((joint) => Object.values(joint));
+      this.isLeftHandCaptured = true;
+      this.isRightHandCaptured = true;
+      this.leftLandmarks = landmarks1;
+      this.rightLandmarks = landmarks2;
+    }
+  ];
+
+  update(results: OringinResults) {
+    this.strategies[results.multiHandLandmarks.length].call(this, results);
+  }
+}
+
 function render3D() {
-  const joints = new Joints();
-  const onResults = (results: Results) => {
-    // todo
+  const currentResults = new CurrentResults();
+  const onResults = (results: OringinResults) => {
+    currentResults.update(results);
   }
   hands.onResults(onResults);
-  createCtx3D()(joints);
-  console.log(joints)
+  const render = createCtx3D()
+  render(currentResults);
 }
 render3D();

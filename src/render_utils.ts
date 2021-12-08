@@ -2,23 +2,29 @@ import { HAND_CONNECTIONS } from "../public/hands";
 import { drawConnectors, drawLandmarks } from "../public/drawing_utils";
 import * as BABYLON from 'babylonjs';
 
-interface Results {
+interface OringinResults {
   image: CanvasImageSource;
   multiHandLandmarks: {
-    x: number[];
-    y: number[];
-    z: number[];
-  }[][]
+    x: number;
+    y: number;
+    z: number;
+  }[][];
+  multiHandedness: {
+    label: string;
+    score: number;
+  }[];
 }
 
-class Joints {
-  leftHand: number[][];
-  rightHand: number[][];
-  length: number;
+interface RefinedResults {
+  leftLandmarks: number[][];
+  rightLandmarks: number[][];
+  isLeftHandCaptured: boolean;
+  isRightHandCaptured: boolean;
 }
 
-function createCtx2D(width=0, height=0): (arg0: Results) => void {
-  const canvas = document.querySelector("#canvas") as HTMLCanvasElement;;
+const canvas = document.querySelector("#canvas") as HTMLCanvasElement;
+
+function createCtx2D(width=0, height=0): (results: OringinResults) => void {
   const canvasCtx = canvas.getContext("2d");
 
   canvas.width = width;
@@ -40,15 +46,10 @@ function createCtx2D(width=0, height=0): (arg0: Results) => void {
   }
 }
 
-function createCtx3D(): (arg0: Joints) => void {
-  const canvas = document.querySelector("#canvas") as HTMLCanvasElement;
+function createCtx3D(): (results: RefinedResults) => void {
   const engine = new BABYLON.Engine(canvas, true);
-
-  window.addEventListener("resize", function () {
-    engine.resize();
-  });
-
-  const createScene = function (joints?: Joints): BABYLON.Scene {
+  
+  const createScene = function (results?: RefinedResults): BABYLON.Scene {
     const scene = new BABYLON.Scene(engine);
     BABYLON.MeshBuilder.CreateBox("box", {});
 
@@ -59,12 +60,16 @@ function createCtx3D(): (arg0: Joints) => void {
     return scene;
   };
 
-  return (joints) => {
-    const scene = createScene(joints);
+  window.addEventListener("resize", function () {
+    engine.resize();
+  });
+
+  return (results) => {
+    const scene = createScene(results);
     engine.runRenderLoop(function () {
       scene.render();
     });
   }
 }
 
-export { createCtx2D, createCtx3D, Results, Joints};
+export { createCtx2D, createCtx3D, OringinResults, RefinedResults};

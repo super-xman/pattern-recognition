@@ -1,4 +1,4 @@
-var hand = {};
+const hand = {};
 (function () {
   'use strict'; var x; function aa(a) { var b = 0; return function () { return b < a.length ? { done: !1, value: a[b++] } : { done: !0 } } } var ba = "function" == typeof Object.defineProperties ? Object.defineProperty : function (a, b, c) { if (a == Array.prototype || a == Object.prototype) return a; a[b] = c.value; return a };
   function ca(a) { a = ["object" == typeof globalThis && globalThis, a, "object" == typeof window && window, "object" == typeof self && self, "object" == typeof global && global]; for (var b = 0; b < a.length; ++b) { var c = a[b]; if (c && c.Math == Math) return c } throw Error("Cannot find global object"); } var y = ca(this); function B(a, b) { if (b) a: { var c = y; a = a.split("."); for (var d = 0; d < a.length - 1; d++) { var e = a[d]; if (!(e in c)) break a; c = c[e] } a = a[a.length - 1]; d = c[a]; b = b(d); b != d && null != b && ba(c, a, { configurable: !0, writable: !0, value: b }) } }
@@ -182,7 +182,7 @@ var hand = {};
   J("HAND_CONNECTIONS", [[0, 1], [1, 2], [2, 3], [3, 4], [0, 5], [5, 6], [6, 7], [7, 8], [5, 9], [9, 10], [10, 11], [11, 12], [9, 13], [13, 14], [14, 15], [15, 16], [13, 17], [0, 17], [17, 18], [18, 19], [19, 20]]); J("VERSION", "0.4.1635986972");
 }).call(hand);
 
-var Hands = hand.Hands;
-var HAND_CONNECTIONS = hand.HAND_CONNECTIONS;
+const Hands = hand.Hands;
+const HAND_CONNECTIONS = hand.HAND_CONNECTIONS;
 
 export { Hands, HAND_CONNECTIONS };
