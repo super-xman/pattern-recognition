@@ -1,7 +1,7 @@
 // import * as math from "../public/math.min";
 import Camera from "../public/camera_utils";
 import {Hands} from "../public/hands";
-import onResults from "./result_utils";
+import { render, Results, Joints } from "./render_utils";
 
 const videoElement = document.getElementsByClassName('input_video')[0];
 
@@ -25,4 +25,19 @@ hands.setOptions({
   minTrackingConfidence: 0.5
 });
 
-hands.onResults(onResults);
+function render2D() {
+  const onResults = (results: Results) => {
+    render('2d')(results);
+  }
+  hands.onResults(onResults);
+}
+
+function render3D() {
+  const joints = new Joints();
+  const onResults = (results: Results) => {
+    // todo
+  }
+  hands.onResults(onResults);
+  render('3d')(joints: Joints);
+}
+
