@@ -24,12 +24,12 @@ interface RefinedResults {
 
 const canvas = document.querySelector("#canvas") as HTMLCanvasElement;
 
-function createCtx2D(width=0, height=0): (results: OringinResults) => void {
+function createCtx2D(width:number, height:number): (results: OringinResults) => void {
   const canvasCtx = canvas.getContext("2d");
 
   canvas.width = width;
   canvas.height = height;
-  canvas.style.height = "auto";
+  canvas.style.objectFit = "contain";
 
   return (results) => {
     canvasCtx.save();
@@ -49,7 +49,7 @@ function createCtx2D(width=0, height=0): (results: OringinResults) => void {
 function createCtx3D(): (results: RefinedResults) => void {
   const engine = new BABYLON.Engine(canvas, true);
   
-  const createScene = function (results?: RefinedResults): BABYLON.Scene {
+  const createScene = function (results: RefinedResults): BABYLON.Scene {
     const scene = new BABYLON.Scene(engine);
     BABYLON.MeshBuilder.CreateBox("box", {});
 
@@ -72,4 +72,59 @@ function createCtx3D(): (results: RefinedResults) => void {
   }
 }
 
-export { createCtx2D, createCtx3D, OringinResults, RefinedResults};
+type Hands = {
+  onResults: (arg0: (results: OringinResults) => void) => void;
+}
+
+function render2D(hands: Hands, width=1280, height=720) {
+  const render = createCtx2D(width, height);
+  const onResults = (results: OringinResults) => {
+    render(results);
+  }
+  hands.onResults(onResults);
+}
+
+class CurrentResults implements RefinedResults {
+  leftLandmarks: number[][];
+  rightLandmarks: number[][];
+  isLeftHandCaptured: boolean;
+  isRightHandCaptured: boolean;
+
+  private strategies = [
+    function(_results: OringinResults){
+      this.isLeftHandCaptured = false;
+      this.isRightHandCaptured = false;
+    },
+    function(results: OringinResults){
+      let landmarks = results.multiHandLandmarks[0].map((joint) => Object.values(joint));
+      this.isLeftHandCaptured = results.multiHandedness[0].label === "Left";
+      this.isRightHandCaptured = !this.isLeftHandCaptured;
+      this.leftLandmarks = this.isLeftHandCaptured && landmarks;
+      this.rightLandmarks = this.isRightHandCaptured && landmarks;
+    },
+    function(results: OringinResults){
+      let landmarks1 = results.multiHandLandmarks[0].map((joint) => Object.values(joint));
+      let landmarks2 = results.multiHandLandmarks[1].map((joint) => Object.values(joint));
+      this.isLeftHandCaptured = true;
+      this.isRightHandCaptured = true;
+      this.leftLandmarks = landmarks1;
+      this.rightLandmarks = landmarks2;
+    }
+  ];
+
+  update(results: OringinResults) {
+    this.strategies[results.multiHandLandmarks.length].call(this, results);
+  }
+}
+
+function render3D(hands: Hands) {
+  const currentResults = new CurrentResults();
+  const onResults = (results: OringinResults) => {
+    currentResults.update(results);
+  }
+  hands.onResults(onResults);
+  const render = createCtx3D()
+  render(currentResults);
+}
+
+export { render2D, render3D};
