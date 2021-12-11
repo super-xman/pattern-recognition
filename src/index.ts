@@ -25,4 +25,4 @@ hands.setOptions({
   minTrackingConfidence: 0.5
 });
 
-render2D(hands);
+render3D(hands);

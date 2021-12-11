@@ -1,10 +1,67 @@
 import * as math from "mathjs";
 
+interface OringinResults {
+  image: CanvasImageSource;
+  multiHandLandmarks: {
+    x: number;
+    y: number;
+    z: number;
+  }[][];
+  multiHandedness: {
+    label: string;
+    score: number;
+  }[];
+}
+
+
+interface RefinedResults {
+  leftLandmarks: number[][];
+  rightLandmarks: number[][];
+  isLeftHandCaptured: boolean;
+  isRightHandCaptured: boolean;
+}
+
+
+class CurrentResults implements RefinedResults {
+  leftLandmarks: number[][];
+  rightLandmarks: number[][];
+  isLeftHandCaptured: boolean;
+  isRightHandCaptured: boolean;
+
+  private strategies = [
+    function(_results: OringinResults){
+      this.isLeftHandCaptured = false;
+      this.isRightHandCaptured = false;
+    },
+    function(results: OringinResults){
+      let landmarks = results.multiHandLandmarks[0].map((joint) => Object.values(joint));
+      this.isLeftHandCaptured = results.multiHandedness[0].label === "Left";
+      this.isRightHandCaptured = !this.isLeftHandCaptured;
+      this.leftLandmarks = this.isLeftHandCaptured && landmarks;
+      this.rightLandmarks = this.isRightHandCaptured && landmarks;
+    },
+    function(results: OringinResults){
+      let landmarks1 = results.multiHandLandmarks[0].map((joint) => Object.values(joint));
+      let landmarks2 = results.multiHandLandmarks[1].map((joint) => Object.values(joint));
+      this.isLeftHandCaptured = true;
+      this.isRightHandCaptured = true;
+      this.leftLandmarks = landmarks1;
+      this.rightLandmarks = landmarks2;
+    }
+  ];
+
+  update(results: OringinResults) {
+    this.strategies[results.multiHandLandmarks.length].call(this, results);
+  }
+}
+
+
 function norm_vec<T extends math.Matrix | math.MathArray>(v1: T, v2: T): T{
   var mat = math.cross(v1, v2);
   var den = math.norm(mat);
   return math.divide(mat, den) as T; 
 }
+
 
 function get_orth_joints(data: number[][], std = [0,5,17]): math.Matrix{
   var numJoints: number = data.length;
@@ -41,4 +98,5 @@ function get_orth_joints(data: number[][], std = [0,5,17]): math.Matrix{
   return orthJoints;
 }
 
-export default get_orth_joints;
+
+export {OringinResults, RefinedResults, CurrentResults};
