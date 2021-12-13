@@ -7,6 +7,7 @@ import createScene from "./render3D";
 const canvas = document.querySelector("#canvas") as HTMLCanvasElement;
 
 
+// 创建二维画布环境
 function createCtx2D(width:number, height:number): (results: HandData.OringinResults) => void {
   const canvasCtx = canvas.getContext("2d");
 
@@ -30,6 +31,7 @@ function createCtx2D(width:number, height:number): (results: HandData.OringinRes
 }
 
 
+// 创建三维画布环境
 function createCtx3D(results: HandData.RefinedResults) {
   const engine = new Engine(canvas, true);
 
@@ -37,9 +39,17 @@ function createCtx3D(results: HandData.RefinedResults) {
     engine.resize();
   });
 
-  const scene = createScene(canvas, engine, results);
-  engine.runRenderLoop(function () {
-    scene.render();
+  const handCaptured = new Promise((resolve) => {
+    if(results.isLeftHandCaptured || results.isRightHandCaptured){
+      resolve("捕获到手势");
+    }
+  });
+
+  handCaptured.then(() => {
+    const scene = createScene(canvas, engine, results);
+    engine.runRenderLoop(function () {
+      scene.render();
+    });
   });
 }
 
@@ -48,7 +58,7 @@ type Hands = {
   onResults: (arg0: (results: HandData.OringinResults) => void) => void;
 }
 
-
+// 绘制二维手势关键点
 function render2D(hands: Hands, width=1280, height=720) {
   const render = createCtx2D(width, height);
   const onResults = (results: HandData.OringinResults) => {
@@ -58,6 +68,7 @@ function render2D(hands: Hands, width=1280, height=720) {
 }
 
 
+// 绘制三维手势关键点
 function render3D(hands: Hands) {
   const currentResults = new HandData.CurrentResults();
   const onResults = (results: HandData.OringinResults) => {
