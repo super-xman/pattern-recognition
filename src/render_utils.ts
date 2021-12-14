@@ -7,8 +7,13 @@ import createScene from "./render3D";
 const canvas = document.querySelector("#canvas") as HTMLCanvasElement;
 
 
-// 创建二维画布环境
-function createCtx2D(width:number, height:number): (results: HandData.OringinResults) => void {
+/**
+ * 创建二维画布环境。
+ * @param width 画布宽度
+ * @param height 画布高度
+ * @return 绘制函数
+ */
+function createCtx2D(width: number, height: number): (results: HandData.OringinResults) => void {
   const canvasCtx = canvas.getContext("2d");
 
   canvas.width = width;
@@ -30,8 +35,10 @@ function createCtx2D(width:number, height:number): (results: HandData.OringinRes
   }
 }
 
-
-// 创建三维画布环境
+/**
+ * 创建三维画布环境，并绘制。
+ * @param results 关节点识别结果
+ */
 function createCtx3D(results: HandData.RefinedResults) {
   const engine = new Engine(canvas, true);
 
@@ -39,17 +46,9 @@ function createCtx3D(results: HandData.RefinedResults) {
     engine.resize();
   });
 
-  const handCaptured = new Promise((resolve) => {
-    if(results.isLeftHandCaptured || results.isRightHandCaptured){
-      resolve("捕获到手势");
-    }
-  });
-
-  handCaptured.then(() => {
-    const scene = createScene(canvas, engine, results);
-    engine.runRenderLoop(function () {
-      scene.render();
-    });
+  const scene = createScene(canvas, engine, results);
+  engine.runRenderLoop(function () {
+    scene.render();
   });
 }
 
@@ -58,8 +57,13 @@ type Hands = {
   onResults: (arg0: (results: HandData.OringinResults) => void) => void;
 }
 
-// 绘制二维手势关键点
-function render2D(hands: Hands, width=1280, height=720) {
+/**
+ * 绘制二维手势关键点。
+ * @param hands 手的识别结果，包含数据处理方法 onResult，每帧调用一次
+ * @param width 画布宽度
+ * @param height 画布高度
+ */
+function render2D(hands: Hands, width = 1280, height = 720) {
   const render = createCtx2D(width, height);
   const onResults = (results: HandData.OringinResults) => {
     render(results);
@@ -68,7 +72,10 @@ function render2D(hands: Hands, width=1280, height=720) {
 }
 
 
-// 绘制三维手势关键点
+/**
+ * 绘制三维手势关键点。
+ * @param hands 手的识别结果，包含数据处理方法 onResult，每帧调用一次
+ */
 function render3D(hands: Hands) {
   const currentResults = new HandData.CurrentResults();
   const onResults = (results: HandData.OringinResults) => {
