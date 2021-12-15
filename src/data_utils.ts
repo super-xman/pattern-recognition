@@ -19,8 +19,8 @@ interface OringinResults {
 interface RefinedResults {
   isLeftHandCaptured: boolean;
   isRightHandCaptured: boolean;
-  leftLandmarks: number[][]; // 左手关节点三维坐标
-  rightLandmarks: number[][]; // 右手关节点三维坐标
+  leftLandmarks: number[][] | undefined; // 左手关节点三维坐标
+  rightLandmarks: number[][] | undefined; // 右手关节点三维坐标
 }
 
 
@@ -36,15 +36,15 @@ class CurrentResults implements RefinedResults {
       this.isRightHandCaptured = false;
     },
     function (results: OringinResults) {
-      let landmarks = results.multiHandLandmarks[0].map((joint) => Object.values(joint));
+      let landmarks = results.multiHandLandmarks[0].map((joint) => Object.values(joint).slice(3));
       this.isLeftHandCaptured = results.multiHandedness[0].label === "Left";
       this.isRightHandCaptured = !this.isLeftHandCaptured;
       this.leftLandmarks = this.isLeftHandCaptured && landmarks;
       this.rightLandmarks = this.isRightHandCaptured && landmarks;
     },
     function (results: OringinResults) {
-      let landmarks1 = results.multiHandLandmarks[0].map((joint) => Object.values(joint));
-      let landmarks2 = results.multiHandLandmarks[1].map((joint) => Object.values(joint));
+      let landmarks1 = results.multiHandLandmarks[0].map((joint) => Object.values(joint).slice(3));
+      let landmarks2 = results.multiHandLandmarks[1].map((joint) => Object.values(joint).slice(3));
       this.isLeftHandCaptured = true;
       this.isRightHandCaptured = true;
       this.leftLandmarks = landmarks1;

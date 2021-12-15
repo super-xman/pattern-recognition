@@ -1,7 +1,15 @@
 import * as BABYLON from "babylonjs";
 import { RefinedResults, getBonesLength } from "./data_utils";
 
-const JOINTS_SIZE = [3, 2.5, 2, 1.5, 1, 1.4, 1, 1, 1, 1.5, 1, 1, 1, 1.4, 1, 1, 1, 1.3, 1, 1, 1];
+const JOINTS_SIZE = [3, 2.5, 2, 1.5, 1, 1.4, 1, 1, 1, 1.5, 1, 1, 1, 1.4, 1, 1, 1, 1.3, 1, 1, 1]; // 关节尺寸
+const PALMJOINS = [5, 9, 13, 17]; // 手掌关节（不包含手腕）
+const CONNECTIONS = [ // 活动关节的连接信息
+  [0, 1], [1, 2], [2, 3], [3, 4],
+  [5, 6], [6, 7], [7, 8],
+  [9, 10], [10, 11], [11, 12],
+  [13, 14], [14, 15], [15, 16],
+  [17, 18], [18, 19], [19, 20]
+];
 
 const data: RefinedResults = {
   isLeftHandCaptured: true,
@@ -33,21 +41,44 @@ const data: RefinedResults = {
 
 
 class HandModel {
+  protected _size: number[] = JOINTS_SIZE;
+  protected _bones: number[] = new Array(21).fill(3);
+  protected _conections: number[][] = CONNECTIONS;
+  protected _palm: number[] = PALMJOINS;
   joints: BABYLON.Mesh[];
+
   /**
    * 创建手模型，手关节由小球表示
    * @param size 关节大小
    * @param bones 手骨长度
    */
-  constructor(size: number[], bones: number[]) {
+  constructor() {
     // 定义关节模型
     this.joints = Array(20).fill({}).map((_, i) => {
-      return BABYLON.MeshBuilder.CreateSphere(`joint${i}`, { diameter: size[i] });
+      return BABYLON.MeshBuilder.CreateSphere(`joint${i}`, { diameter: this._size[i] });
     });
-    // 手腕是所有关节点的父节点
-    for (let i = 1; i < this.joints.length; i++) {
+    // 手腕是手掌关节的父节点
+    for (let i of PALMJOINS) {
       this.joints[0].addChild(this.joints[i]);
     }
+  }
+
+  set size(newSize: number[]) {
+    this._size = newSize;
+  }
+
+  set bones(newBones: number[]) {
+    this._bones = newBones;
+  }
+
+  updatePosition(landmarks: number[]) {
+    this.joints.map((joint, index) => {
+      joint.position = new BABYLON.Vector3(landmarks[index]);
+    });
+  }
+
+  setPalmPosition() {
+
   }
 }
 
@@ -78,18 +109,20 @@ const createScene = function (canvas: HTMLCanvasElement, engine: BABYLON.Engine,
 
     if (!leftHand && !rightHand) {
       bonesLength = getBonesLength(results.leftLandmarks || results.rightLandmarks);
+      HandModel.prototype.size = JOINTS_SIZE;
+      HandModel.prototype.bones = bonesLength;
     }
 
     if (results.isLeftHandCaptured) {
       if (!leftHand) {
-        leftHand = new HandModel(JOINTS_SIZE, bonesLength);
+        leftHand = new HandModel();
       }
       leftHand.joints[0].position = new BABYLON.Vector3(...results.leftLandmarks[0]);
     }
 
     if (results.isRightHandCaptured) {
       if (!rightHand) {
-        rightHand = new HandModel(JOINTS_SIZE, bonesLength);
+        rightHand = new HandModel();
       }
       rightHand.joints[0].position = new BABYLON.Vector3(...results.rightLandmarks[0]);
     }
