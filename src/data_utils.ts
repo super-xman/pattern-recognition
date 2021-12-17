@@ -105,23 +105,33 @@ function normVec<T extends math.Matrix | math.MathArray>(v1: T, v2: T): T {
 
 
 /**
- * 获取正则化后的各关节点坐标，即将关节点从世界坐标系转换到手掌坐标系
- * @param data 各关节点三维坐标
- * @param refer 由三点确定的基准参考系
- * @returns 变换坐标系后的各关节点三维坐标
+ * 根据给定基准点求出局部坐标系的坐标轴向量。
+ * @param p1 基准点1（原点）
+ * @param p2 基准点2
+ * @param p3 基准点3
+ * @returns 坐标轴向量
  */
-function getOrthJoints(data: number[][], refer = REFERENCE): number[][] {
-  var numJoints: number = data.length;
-  // 掌心的三个关节作为基准点
-  var [p1, p2, p3]: [number[], number[], number[]] = [data[refer[0]], data[refer[1]], data[refer[2]]];
-  // 平移矩阵T
-  var T: math.Matrix = math.matrix([[1, 0, 0, -p1[0]], [0, 1, 0, -p1[1]], [0, 0, 1, -p1[2]], [0, 0, 0, 1]]);
-
+function getAxes(p1: number[], p2: number[], p3: number[]) {
   // 计算以基准点构建的局部坐标系
   var vec13: number[] = math.subtract(p3, p1) as number[];
   var vy: number[] = math.divide(vec13, math.norm(vec13) as number + 1e-6) as number[];
   var vz: number[] = normVec(math.subtract(p2, p1) as number[], vy);
   var vx: number[] = normVec(vy, vz);
+  return [vx, vy, vz];
+}
+
+
+/**
+ * 获取正则化后的各关节点坐标，即将关节点从世界坐标系转换到手掌坐标系
+ * @param data 各关节点三维坐标
+ * @param refer 用于确定基准参考系的三个关节点索引
+ * @returns 变换坐标系后的各关节点三维坐标
+ */
+function getOrthJoints(data: number[][], refer = REFERENCE): number[][] {
+  // 掌心的三个关节作为基准点
+  var [p1, p2, p3]: [number[], number[], number[]] = [data[refer[0]], data[refer[1]], data[refer[2]]];
+  // 局部坐标系的坐标轴向量
+  var [vx, vy, vz] = getAxes(p1, p2, p3);
 
   // 求将局部坐标系旋转到与世界坐标系 z 轴重合的旋转矩阵 R1
   var uz: number[] = vz;
@@ -135,10 +145,12 @@ function getOrthJoints(data: number[][], refer = REFERENCE): number[][] {
   var sin: number = (math.cross(math.resize(vx, [3]) as number[], [1, 0, 0]) as number[])[2] > 0 ? -vx[1] : vx[1];
   var R2: math.Matrix = math.matrix([[cos, -sin, 0, 0], [sin, cos, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]]);
 
+  // 平移矩阵T
+  var T: math.Matrix = math.matrix([[1, 0, 0, -p1[0]], [0, 1, 0, -p1[1]], [0, 0, 1, -p1[2]], [0, 0, 0, 1]]);
   // 合并 R2、R1、T 得到变换矩阵
   var tran: math.Matrix = math.multiply(math.multiply(R2, R1), T);
   // 计算变换坐标系后的关节点坐标
-  var forthCol: number[] = math.ones(numJoints, 1) as number[];
+  var forthCol: number[] = math.ones(data.length, 1) as number[];
   var joints: math.Matrix = math.transpose(math.concat(data, forthCol, 1)) as math.Matrix;
   var orthJoints: number[][] = math.transpose(math.multiply(tran, joints)).toArray() as number[][];
 
@@ -177,4 +189,4 @@ function getPalmOrthJoints(landmarks: number[][], palmJoints: number[], isLeft: 
 }
 
 
-export { OringinResults, RefinedResults, CurrentResults, getBonesLength, getPalmOrthJoints, testData };
+export { OringinResults, RefinedResults, CurrentResults, getBonesLength, getPalmOrthJoints, getAxes, testData };
