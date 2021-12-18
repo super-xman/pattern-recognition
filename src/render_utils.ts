@@ -67,6 +67,7 @@ function render2D(hands: Hands, width = 1280, height = 720) {
   const render = createCtx2D(width, height);
   const onResults = (results: HandData.OringinResults) => {
     render(results);
+    console.log(results)
   }
   hands.onResults(onResults);
 }
