@@ -73,7 +73,7 @@ class HandModel {
    */
   initPalmPosition(isRight: boolean) {
     // 将手腕设为手掌关节的父节点
-    for (let i = 1; i < this._palmJoints.length; i++) {
+    for (let i of this._palmJoints.slice(1)) {
       this.joints[0].addChild(this.joints[i]);
     }
     // 设置手掌其余关节的相对坐标
@@ -113,7 +113,7 @@ const createScene = function (canvas: HTMLCanvasElement, engine: BABYLON.Engine,
       let landmarks = results.leftLandmarks || results.rightLandmarks;
       HandModel.prototype.jointsSize = JOINTS_SIZE;
       HandModel.prototype.bonesLength = getBonesLength(landmarks, CONNECTIONS);
-      HandModel.prototype.palmOrthLandmarks = getPalmOrthJoints(landmarks, PALMJOINTS, results.isLeftHandCaptured);
+      HandModel.prototype.palmOrthLandmarks = getPalmOrthJoints(landmarks, PALMJOINTS, results.isLeftHandCaptured, 10);
     }
 
     if (results.isLeftHandCaptured) {
