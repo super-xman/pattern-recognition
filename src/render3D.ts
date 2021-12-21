@@ -1,9 +1,9 @@
 // import * as math from "mathjs";
 import * as BABYLON from "babylonjs";
-import { RefinedResults, getBonesLength, getPalmOrthJoints, getAxes, testData } from "./data_utils";
+import { RefinedResults, getBonesLength, getPalmOrthJoints, getOrthJoints, getAxes, testData } from "./data_utils";
 
-const JOINTS_SIZE = [3, 2.5, 2, 1.5, 1, 1.4, 1, 1, 1, 1.5, 1, 1, 1, 1.4, 1, 1, 1, 1.3, 1, 1, 1]; // 关节尺寸
-const PALMJOINTS = [0, 5, 9, 13, 17]; // 手掌关节，0为手腕
+const JOINTS_SIZE = [2.5, 2, 1.5, 1.2, 1, 1.4, 1, 1, 1, 1.5, 1, 1, 1, 1.4, 1, 1, 1, 1.3, 1, 1, 1]; // 关节尺寸
+const PALM_JOINTS = [0, 5, 9, 13, 17]; // 手掌关节，0为手腕
 const REFERENCE = [0, 5, 17] //基准参考系
 const CONNECTIONS = [ // 活动关节的连接信息
   [0, 1], [1, 2], [2, 3], [3, 4],
@@ -18,7 +18,7 @@ class HandModel {
   protected _bonesLength: number[] = new Array(21).fill(3);
   protected _conections: number[][] = CONNECTIONS;
   protected _referJoints: number[] = REFERENCE;
-  protected _palmJoints: number[] = PALMJOINTS;
+  protected _palmJoints: number[] = PALM_JOINTS;
   protected _palmsOrthLandmarks: number[][][]; // todo: 给定一个初始值
   joints: BABYLON.Mesh[];
 
@@ -28,10 +28,10 @@ class HandModel {
    */
   constructor(handType: string) {
     // 定义关节模型
-    this.joints = Array(20).fill({}).map((_, i) => {
-      return BABYLON.MeshBuilder.CreateSphere(`joint${i}`, { diameter: this._jointsSize[i] });
+    this.joints = Array(21).fill({}).map((_, i) => {
+      return BABYLON.MeshBuilder.CreateSphere(`joint${i}`, { diameter: this._jointsSize[i] / 30 });
     });
-    this.initPalmPosition(handType === 'right');
+    // this.initPalmPosition(handType === 'right');
   }
 
   set jointsSize(newSize: number[]) {
@@ -50,21 +50,25 @@ class HandModel {
    * 更新各关节带点坐标
    * @param landmarks 
    */
-  updatePosition(landmarks: number[][]) {
-    // 掌心的三个关节作为基准点
-    var [p1, p2, p3] = [...this._referJoints.map((joint) => landmarks[joint])];
-    // 局部坐标系的坐标轴向量
-    var axes = getAxes(p1, p2, p3).map((axis) => new BABYLON.Vector3(...axis));
-    // 将手掌关节作为整体进行平移和旋转
-    this.joints[0].rotation = BABYLON.Vector3.RotationFromAxis(axes[0], axes[1], axes[2]);
-    this.joints[0].position = new BABYLON.Vector3(...p1);
-    // 确定手掌关节后再确定手指关节坐标，通过关节1和方向向量推断出相邻关节2的坐标
-    this._conections.map((joints, index) => {
-      let vec1 = new BABYLON.Vector3(...landmarks[joints[0]]);
-      let vec2 = new BABYLON.Vector3(...landmarks[joints[1]]);
-      let offset = vec2.subtract(vec1).normalize().scale(this._bonesLength[index]);
-      this.joints[joints[1]].position = offset.add(this.joints[joints[0]].position);
-    })
+  // updatePosition(landmarks: number[][]) {
+  //   // 掌心的三个关节作为基准点
+  //   var [p1, p2, p3] = [...this._referJoints.map((joint) => landmarks[joint])];
+  //   // 局部坐标系的坐标轴向量
+  //   var axes = getAxes(p1, p2, p3).map((axis) => new BABYLON.Vector3(...axis));
+  //   // 将手掌关节作为整体进行平移和旋转
+  //   this.joints[0].rotation = BABYLON.Vector3.RotationFromAxis(axes[0], axes[1], axes[2]);
+  //   this.joints[0].position = new BABYLON.Vector3(...p1);
+  //   // 确定手掌关节后再确定手指关节坐标，通过关节1和方向向量推断出相邻关节2的坐标
+  //   this._conections.map((joints, index) => {
+  //     let vec1 = new BABYLON.Vector3(...landmarks[joints[0]]);
+  //     let vec2 = new BABYLON.Vector3(...landmarks[joints[1]]);
+  //     let offset = vec2.subtract(vec1).normalize().scale(this._bonesLength[index]);
+  //     this.joints[joints[1]].position = offset.add(this.joints[joints[0]].position);
+  //   })
+  // }
+  updatePosition(_landmarks: number[][]) {
+    let landmarks = getOrthJoints(_landmarks);
+    this.joints.map((joint, index) => { joint.position = new BABYLON.Vector3(landmarks[index][0], landmarks[index][1], landmarks[index][2]); })
   }
 
   /**
@@ -78,8 +82,8 @@ class HandModel {
     }
     // 设置手掌其余关节的相对坐标
     let palmOrthLandmarks = this._palmsOrthLandmarks[Number(isRight)];
-    this._palmJoints.slice(1).map((i) => {
-      this.joints[i].position = new BABYLON.Vector3(...palmOrthLandmarks[i]);
+    this._palmJoints.map((v, i) => {
+      this.joints[v].position = new BABYLON.Vector3(...palmOrthLandmarks[i]);
     });
   }
 }
@@ -100,8 +104,8 @@ const createScene = function (canvas: HTMLCanvasElement, engine: BABYLON.Engine,
   camera.lowerRadiusLimit = 2; // 相机的最近距离
   camera.attachControl(canvas, true);
 
-  let leftHand: HandModel = null;
-  let rightHand: HandModel = null;
+  let leftHand: HandModel | null = null;
+  let rightHand: HandModel | null = null;
 
   scene.registerBeforeRender(function () {
     if (!results.isLeftHandCaptured && !results.isRightHandCaptured) {
