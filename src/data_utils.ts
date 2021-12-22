@@ -122,13 +122,18 @@ function getAxes(p1: number[], p2: number[], p3: number[]) {
 }
 
 
+interface OrthJoints {
+  joints: number[][];
+  axes: number[][];
+}
+
 /**
  * 获取正则化后的各关节点坐标，即将关节点从世界坐标系转换到手掌坐标系
  * @param data 各关节点三维坐标
  * @param refer 用于确定基准参考系的三个关节点索引
- * @returns 变换坐标系后的各关节点三维坐标
+ * @returns 变换坐标系后的各关节点三维坐标及手掌坐标系
  */
-function getOrthJoints(data: number[][], refer = REFERENCE): number[][] {
+function getOrthJoints(data: number[][], refer = REFERENCE): OrthJoints {
   // 掌心的三个关节作为基准点
   var [p1, p2, p3]: [number[], number[], number[]] = [data[refer[0]], data[refer[1]], data[refer[2]]];
   // 局部坐标系的坐标轴向量
@@ -155,7 +160,10 @@ function getOrthJoints(data: number[][], refer = REFERENCE): number[][] {
   var joints: math.Matrix = math.transpose(math.concat(data, forthCol, 1)) as math.Matrix;
   var orthJoints: number[][] = math.transpose(math.multiply(tran, joints)).toArray() as number[][];
 
-  return orthJoints;
+  return {
+    joints: orthJoints,
+    axes: [vx, vy, vz],
+  };
 }
 
 
@@ -183,7 +191,7 @@ function getBonesLength(landmarks: number[][], connections: number[][], scale = 
  * @returns 正则化的手掌关节坐标，下标1为左手，下标2为右手
  */
 function getPalmOrthJoints(landmarks: number[][], palmJoints: number[], isLeft: boolean, scale = 1): number[][][] {
-  var handJointsLandmarks: number[][] = getOrthJoints(landmarks);
+  var handJointsLandmarks: number[][] = getOrthJoints(landmarks).joints;
   var palmJointsLandmarks1: number[][] = palmJoints.map((joint) => math.multiply(handJointsLandmarks[joint], scale));
   var palmJointsLandmarks2: number[][] = palmJointsLandmarks1.map((landmark) => [-landmark[0], landmark[1], landmark[2]]); // x镜像
   return isLeft ? [palmJointsLandmarks1, palmJointsLandmarks2] : [palmJointsLandmarks2, palmJointsLandmarks1];
