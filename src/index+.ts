@@ -4,7 +4,6 @@ import createScene from "./render3D";
 
 const canvas = document.querySelector("#canvas") as HTMLCanvasElement;
 
-
 const engine = new Engine(canvas, true);
 
 window.addEventListener("resize", function () {

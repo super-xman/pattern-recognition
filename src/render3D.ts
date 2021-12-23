@@ -12,22 +12,27 @@ const FINGER_CONNECTIONS = [ // 活动关节的连接信息
   [17, 18], [18, 19], [19, 20]
 ];
 const PALM_CONNECTIONS = [[0, 1, 5, 9, 13, 17, 0]]; // 手掌关节的连接信息
-const LENGTH_SCALE = 2; // 手骨长度缩放系数
+const LENGTH_SCALE = 1; // 手骨长度缩放系数
 const SIZE_SCALE = 0.04; // 关节大小缩放系数
 
 
 class HandModel {
   private _scene: BABYLON.Scene;
   private _bonesLength: number[];
+  isLeft: boolean;
   joints: BABYLON.Mesh[];
   bones: BABYLON.Mesh[];
 
   /**
    * 创建手模型，手关节由小球表示。
    * @param handType 'left' or 'right'
+   * @param landmarks 各关节三维坐标
+   * @param color 关节模型颜色
+   * @param scene 场景对象
    */
-  constructor(landmarks: number[][], color: BABYLON.Color3, scene: BABYLON.Scene) {
+  constructor(handType: string, landmarks: number[][], color: BABYLON.Color3, scene: BABYLON.Scene) {
     this._scene = scene;
+    this.isLeft = handType === 'left';
     // 定义关节模型
     this.joints = Array(21).fill({}).map((_, index) => {
       return BABYLON.MeshBuilder.CreateSphere(`joint${index}`, { diameter: JOINTS_SIZE[index] * SIZE_SCALE });
@@ -51,7 +56,7 @@ class HandModel {
 
   updatePosition(landmarks: number[][]) {
     // 获取相对坐标轴和正则化后的关节坐标
-    let { joints, axes } = getOrthJoints(landmarks);
+    let { joints, axes } = getOrthJoints(landmarks, this.isLeft);
 
     // 局部坐标系的坐标轴向量
     let vecs = axes.map((axis) => new BABYLON.Vector3(...axis));
@@ -74,7 +79,7 @@ class HandModel {
    * @param landmarks 关节点坐标
    */
   setInitMesh(landmarks: number[][], color: BABYLON.Color3) {
-    const jointsLandmarks: number[][] = getOrthJoints(landmarks).joints;
+    const jointsLandmarks: number[][] = getOrthJoints(landmarks, this.isLeft).joints;
     const connections = [...FINGER_CONNECTIONS, ...PALM_CONNECTIONS];
     const jointMat = new BABYLON.StandardMaterial('mat', this._scene);
 
@@ -149,7 +154,7 @@ const createScene = function (canvas: HTMLCanvasElement, engine: BABYLON.Engine,
     if (results.isLeftHandCaptured) {
       console.log('l')
       if (!leftHand) {
-        leftHand = new HandModel(results.leftLandmarks, new BABYLON.Color3(1, 0.4, 0.4), scene);
+        leftHand = new HandModel('left', results.leftLandmarks, new BABYLON.Color3(1, 0.4, 0.4), scene);
       }
       // leftHand.updatePosition(results.leftLandmarks);
     }
@@ -158,7 +163,7 @@ const createScene = function (canvas: HTMLCanvasElement, engine: BABYLON.Engine,
     if (results.isRightHandCaptured) {
       console.log('r')
       if (!rightHand) {
-        rightHand = new HandModel(results.rightLandmarks, new BABYLON.Color3(0.4, 0.58, 0.77), scene);
+        rightHand = new HandModel('right', results.rightLandmarks, new BABYLON.Color3(0.4, 0.58, 0.77), scene);
       }
       // rightHand.updatePosition(results.rightLandmarks);
     }
