@@ -2,32 +2,37 @@
 import * as BABYLON from "babylonjs";
 import { RefinedResults, getBonesLength, getOrthJoints } from "./data_utils";
 
-const JOINTS_SIZE = [2.5, 1.8, 1.5, 1.2, 1, 1.4, 1, 1, 1, 1.5, 1, 1, 1, 1.4, 1, 1, 1, 1.3, 1, 1, 1]; // 关节尺寸
-const CONNECTIONS = [ // 活动关节的连接信息
+const JOINTS_SIZE = [2, 1.7, 1.5, 1.2, 1, 1.4, 1, 1, 1, 1.5, 1, 1, 1, 1.4, 1, 1, 1, 1.3, 1, 1, 1]; // 关节尺寸
+const BONE_SIZE = 0.38;
+const FINGER_CONNECTIONS = [ // 活动关节的连接信息
   [1, 2], [2, 3], [3, 4],
   [5, 6], [6, 7], [7, 8],
   [9, 10], [10, 11], [11, 12],
   [13, 14], [14, 15], [15, 16],
   [17, 18], [18, 19], [19, 20]
 ];
+const PALM_CONNECTIONS = [[0, 1, 5, 9, 13, 17, 0]]; // 手掌关节的连接信息
 const LENGTH_SCALE = 2; // 手骨长度缩放系数
 const SIZE_SCALE = 0.04; // 关节大小缩放系数
 
 
 class HandModel {
+  private _scene: BABYLON.Scene;
   private _bonesLength: number[];
   joints: BABYLON.Mesh[];
+  bones: BABYLON.Mesh[];
 
   /**
    * 创建手模型，手关节由小球表示。
    * @param handType 'left' or 'right'
    */
-  constructor(landmarks: number[][]) {
+  constructor(landmarks: number[][], color: BABYLON.Color3, scene: BABYLON.Scene) {
+    this._scene = scene;
     // 定义关节模型
-    this.joints = Array(21).fill({}).map((_, i) => {
-      return BABYLON.MeshBuilder.CreateSphere(`joint${i}`, { diameter: JOINTS_SIZE[i] * SIZE_SCALE });
+    this.joints = Array(21).fill({}).map((_, index) => {
+      return BABYLON.MeshBuilder.CreateSphere(`joint${index}`, { diameter: JOINTS_SIZE[index] * SIZE_SCALE });
     });
-    this.setInitPosition(landmarks);
+    this.setInitMesh(landmarks, color);
     // 将手腕设为所有关节的父节点
     for (let joint of this.joints.slice(1)) {
       this.joints[0].addChild(joint);
@@ -49,30 +54,41 @@ class HandModel {
     let { joints, axes } = getOrthJoints(landmarks);
 
     // 局部坐标系的坐标轴向量
-    var vecs = axes.map((axis) => new BABYLON.Vector3(...axis));
+    let vecs = axes.map((axis) => new BABYLON.Vector3(...axis));
 
     // 将所有关节作为整体进行平移和旋转
-    this.joints[0].rotation = BABYLON.Vector3.RotationFromAxis(vecs[0], vecs[1], vecs[2]);
-    this.joints[0].position = new BABYLON.Vector3(...landmarks[0]);
+    // this.joints[0].rotation = BABYLON.Vector3.RotationFromAxis(vecs[0], vecs[1], vecs[2]);
+    // this.joints[0].position = new BABYLON.Vector3(...landmarks[0]);
 
     // 确定手指关节坐标，通过关节1和方向向量推断出相邻关节2的坐标
-    CONNECTIONS.map((group, index) => {
+    FINGER_CONNECTIONS.map((group, index) => {
       let vec1 = new BABYLON.Vector3(...joints[group[0]]);
       let vec2 = new BABYLON.Vector3(...joints[group[1]]);
       let offset = vec2.subtract(vec1).normalize().scale(this._bonesLength[index]);
       this.joints[group[1]].position = this.joints[group[0]].position.add(offset);
-    })
+    });
   }
 
   /**
-   * 设置初始关节坐标。
+   * 设置初始关节和手骨位置。
    * @param landmarks 关节点坐标
    */
-  setInitPosition(landmarks: number[][]) {
-    var jointsLandmarks: number[][] = getOrthJoints(landmarks).joints;
+  setInitMesh(landmarks: number[][], color: BABYLON.Color3) {
+    const jointsLandmarks: number[][] = getOrthJoints(landmarks).joints;
+    const connections = [...FINGER_CONNECTIONS, ...PALM_CONNECTIONS];
+    const jointMat = new BABYLON.StandardMaterial('mat', this._scene);
+
+    jointMat.diffuseColor = color;
+
     this.joints.map((joint, index) => {
       joint.position = new BABYLON.Vector3(...jointsLandmarks[index]);
+      joint.material = jointMat;
     })
+
+    this.bones = connections.map((group, index) => {
+      let path = group.map(i => new BABYLON.Vector3(...jointsLandmarks[i]));
+      return BABYLON.MeshBuilder.CreateTube(`bone${index}`, { path: path, radius: BONE_SIZE * SIZE_SCALE });
+    });
   }
 
   set bonesLength(length: number[]) {
@@ -91,7 +107,7 @@ class HandModel {
 const createScene = function (canvas: HTMLCanvasElement, engine: BABYLON.Engine, results: RefinedResults): BABYLON.Scene {
   const scene = new BABYLON.Scene(engine);
   const camera = new BABYLON.ArcRotateCamera("camera", -Math.PI / 2, Math.PI / 2.5, 15, new BABYLON.Vector3(0, 0, 0), scene);
-  const light = new BABYLON.HemisphericLight("light", new BABYLON.Vector3(1, 1, 0), scene); // 灯光
+  const light = new BABYLON.HemisphericLight("light", new BABYLON.Vector3(0, 1, 0), scene); // 灯光
   camera.upperRadiusLimit = 100; // 相机的最远距离
   camera.lowerRadiusLimit = 2; // 相机的最近距离
   camera.attachControl(canvas, true);
@@ -126,28 +142,28 @@ const createScene = function (canvas: HTMLCanvasElement, engine: BABYLON.Engine,
     // 第一次捕捉到手时初始化手掌坐标和手骨长度
     if (!leftHand && !rightHand) {
       let landmarks = results.leftLandmarks || results.rightLandmarks;
-      HandModel.prototype.bonesLength = getBonesLength(landmarks, CONNECTIONS, LENGTH_SCALE);
+      HandModel.prototype.bonesLength = getBonesLength(landmarks, FINGER_CONNECTIONS, LENGTH_SCALE);
     }
 
     // 如果捕捉到左手，更新左手坐标
     if (results.isLeftHandCaptured) {
       console.log('l')
       if (!leftHand) {
-        leftHand = new HandModel(results.leftLandmarks);
+        leftHand = new HandModel(results.leftLandmarks, new BABYLON.Color3(1, 0.4, 0.4), scene);
       }
-      leftHand.updatePosition(results.leftLandmarks);
+      // leftHand.updatePosition(results.leftLandmarks);
     }
 
     // 如果捕捉到右手，更新右手坐标
     if (results.isRightHandCaptured) {
       console.log('r')
       if (!rightHand) {
-        rightHand = new HandModel(results.rightLandmarks);
+        rightHand = new HandModel(results.rightLandmarks, new BABYLON.Color3(0.4, 0.58, 0.77), scene);
       }
-      rightHand.updatePosition(results.rightLandmarks);
+      // rightHand.updatePosition(results.rightLandmarks);
     }
   });
-
+  scene.debugLayer.show();
   return scene;
 };
 
