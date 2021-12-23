@@ -1,10 +1,8 @@
 // import * as math from "mathjs";
 import * as BABYLON from "babylonjs";
-import { RefinedResults, getBonesLength, getPalmOrthJoints, getOrthJoints } from "./data_utils";
+import { RefinedResults, getBonesLength, getOrthJoints } from "./data_utils";
 
 const JOINTS_SIZE = [2.5, 1.8, 1.5, 1.2, 1, 1.4, 1, 1, 1, 1.5, 1, 1, 1, 1.4, 1, 1, 1, 1.3, 1, 1, 1]; // 关节尺寸
-const PALM_JOINTS = [0, 1, 5, 9, 13, 17]; // 手掌关节，0为手腕
-const REFERENCE = [0, 5, 17] //基准参考系
 const CONNECTIONS = [ // 活动关节的连接信息
   [1, 2], [2, 3], [3, 4],
   [5, 6], [6, 7], [7, 8],
@@ -12,12 +10,11 @@ const CONNECTIONS = [ // 活动关节的连接信息
   [13, 14], [14, 15], [15, 16],
   [17, 18], [18, 19], [19, 20]
 ];
-const LENGTH_SCALE = 1; // 手骨长度缩放系数
+const LENGTH_SCALE = 2; // 手骨长度缩放系数
 const SIZE_SCALE = 0.04; // 关节大小缩放系数
 
 
 class HandModel {
-  private _palmsOrthLandmarks: number[][][];
   private _bonesLength: number[];
   joints: BABYLON.Mesh[];
 
@@ -25,12 +22,12 @@ class HandModel {
    * 创建手模型，手关节由小球表示。
    * @param handType 'left' or 'right'
    */
-  constructor(handType: string) {
+  constructor(landmarks: number[][]) {
     // 定义关节模型
     this.joints = Array(21).fill({}).map((_, i) => {
       return BABYLON.MeshBuilder.CreateSphere(`joint${i}`, { diameter: JOINTS_SIZE[i] * SIZE_SCALE });
     });
-    this.setPalmPosition(handType === 'right');
+    this.setInitPosition(landmarks);
     // 将手腕设为所有关节的父节点
     for (let joint of this.joints.slice(1)) {
       this.joints[0].addChild(joint);
@@ -41,14 +38,20 @@ class HandModel {
    * 更新各关节带点坐标
    * @param landmarks
    */
+  // updatePosition(landmarks: number[][]) {
+  //   this.joints.map((joint, index) => {
+  //     joint.position = new BABYLON.Vector3(...landmarks[index]);
+  //   })
+  // }
+
   updatePosition(landmarks: number[][]) {
     // 获取相对坐标轴和正则化后的关节坐标
-    let { joints, axes } = getOrthJoints(landmarks, REFERENCE);
+    let { joints, axes } = getOrthJoints(landmarks);
 
     // 局部坐标系的坐标轴向量
     var vecs = axes.map((axis) => new BABYLON.Vector3(...axis));
 
-    // 确定手掌关节坐标，将手掌关节作为整体进行平移和旋转
+    // 将所有关节作为整体进行平移和旋转
     this.joints[0].rotation = BABYLON.Vector3.RotationFromAxis(vecs[0], vecs[1], vecs[2]);
     this.joints[0].position = new BABYLON.Vector3(...landmarks[0]);
 
@@ -62,18 +65,14 @@ class HandModel {
   }
 
   /**
-   * 设置手掌关节坐标。
-   * @param 是否为右手
+   * 设置初始关节坐标。
+   * @param landmarks 关节点坐标
    */
-  setPalmPosition(isRight: boolean) {
-    let palmOrthLandmarks = this._palmsOrthLandmarks[Number(isRight)];
-    PALM_JOINTS.map((v, i) => {
-      this.joints[v].position = new BABYLON.Vector3(...palmOrthLandmarks[i]);
-    });
-  }
-
-  set palmsOrthLandmarks(landmarks: number[][][]) {
-    this._palmsOrthLandmarks = landmarks;
+  setInitPosition(landmarks: number[][]) {
+    var jointsLandmarks: number[][] = getOrthJoints(landmarks).joints;
+    this.joints.map((joint, index) => {
+      joint.position = new BABYLON.Vector3(...jointsLandmarks[index]);
+    })
   }
 
   set bonesLength(length: number[]) {
@@ -127,22 +126,23 @@ const createScene = function (canvas: HTMLCanvasElement, engine: BABYLON.Engine,
     // 第一次捕捉到手时初始化手掌坐标和手骨长度
     if (!leftHand && !rightHand) {
       let landmarks = results.leftLandmarks || results.rightLandmarks;
-      HandModel.prototype.palmsOrthLandmarks = getPalmOrthJoints(landmarks, PALM_JOINTS, results.isLeftHandCaptured, LENGTH_SCALE);
       HandModel.prototype.bonesLength = getBonesLength(landmarks, CONNECTIONS, LENGTH_SCALE);
     }
 
     // 如果捕捉到左手，更新左手坐标
     if (results.isLeftHandCaptured) {
+      console.log('l')
       if (!leftHand) {
-        leftHand = new HandModel('left');
+        leftHand = new HandModel(results.leftLandmarks);
       }
       leftHand.updatePosition(results.leftLandmarks);
     }
 
     // 如果捕捉到右手，更新右手坐标
     if (results.isRightHandCaptured) {
+      console.log('r')
       if (!rightHand) {
-        rightHand = new HandModel('right');
+        rightHand = new HandModel(results.rightLandmarks);
       }
       rightHand.updatePosition(results.rightLandmarks);
     }
