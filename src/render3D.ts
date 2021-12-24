@@ -3,7 +3,7 @@ import * as BABYLON from "babylonjs";
 import { RefinedResults, getBonesLength, getOrthJoints } from "./data_utils";
 
 const JOINTS_SIZE = [2, 1.7, 1.5, 1.2, 1, 1.4, 1, 1, 1, 1.5, 1, 1, 1, 1.4, 1, 1, 1, 1.3, 1, 1, 1]; // 关节尺寸
-const BONE_SIZE = 0.38;
+const BONE_SIZE = 0.75;
 const FINGER_CONNECTIONS = [ // 活动关节的连接信息
   [1, 2], [2, 3], [3, 4],
   [5, 6], [6, 7], [7, 8],
@@ -11,7 +11,7 @@ const FINGER_CONNECTIONS = [ // 活动关节的连接信息
   [13, 14], [14, 15], [15, 16],
   [17, 18], [18, 19], [19, 20]
 ];
-const PALM_CONNECTIONS = [[0, 1, 5, 9, 13, 17, 0]]; // 手掌关节的连接信息
+const PALM_CONNECTIONS = [0, 1, 5, 9, 13, 17, 0]; // 手掌关节的连接信息
 const LENGTH_SCALE = 1; // 手骨长度缩放系数
 const SIZE_SCALE = 0.04; // 关节大小缩放系数
 
@@ -21,7 +21,8 @@ class HandModel {
   private _bonesLength: number[];
   isLeft: boolean;
   joints: BABYLON.Mesh[];
-  bones: BABYLON.Mesh[];
+  fingerBones: BABYLON.Mesh[];
+  palmBone: BABYLON.Mesh;
 
   /**
    * 创建手模型，手关节由小球表示。
@@ -33,15 +34,14 @@ class HandModel {
   constructor(handType: string, landmarks: number[][], color: BABYLON.Color3, scene: BABYLON.Scene) {
     this._scene = scene;
     this.isLeft = handType === 'left';
-    // 定义关节模型
-    this.joints = Array(21).fill({}).map((_, index) => {
-      return BABYLON.MeshBuilder.CreateSphere(`joint${index}`, { diameter: JOINTS_SIZE[index] * SIZE_SCALE });
-    });
-    this.setInitMesh(landmarks, color);
     // 将手腕设为所有关节的父节点
-    for (let joint of this.joints.slice(1)) {
-      this.joints[0].addChild(joint);
-    }
+    // for (let joint of this.joints.slice(1)) {
+    //   this.joints[0].addChild(joint);
+    // }
+    let orthLandmarks = getOrthJoints(landmarks, this.isLeft).joints;
+    this.createMeshes(orthLandmarks, color);
+    this.setMeshRelation();
+    this.setMeshPosition(orthLandmarks);
   }
 
   /**
@@ -76,23 +76,56 @@ class HandModel {
 
   /**
    * 设置初始关节和手骨位置。
-   * @param landmarks 关节点坐标
+   * @param orthLandmarks 关节点坐标
    */
-  setInitMesh(landmarks: number[][], color: BABYLON.Color3) {
-    const jointsLandmarks: number[][] = getOrthJoints(landmarks, this.isLeft).joints;
-    const connections = [...FINGER_CONNECTIONS, ...PALM_CONNECTIONS];
+  createMeshes(orthLandmarks: number[][], color: BABYLON.Color3) {
     const jointMat = new BABYLON.StandardMaterial('mat', this._scene);
-
     jointMat.diffuseColor = color;
 
-    this.joints.map((joint, index) => {
-      joint.position = new BABYLON.Vector3(...jointsLandmarks[index]);
+    // 定义关节模型
+    this.joints = Array(21).fill({}).map((_, index) => {
+      let joint = BABYLON.MeshBuilder.CreateSphere(`joint${index}`, { diameter: JOINTS_SIZE[index] * SIZE_SCALE });
       joint.material = jointMat;
-    })
+      return joint;
+    });
 
-    this.bones = connections.map((group, index) => {
-      let path = group.map(i => new BABYLON.Vector3(...jointsLandmarks[i]));
-      return BABYLON.MeshBuilder.CreateTube(`bone${index}`, { path: path, radius: BONE_SIZE * SIZE_SCALE });
+    // 定义指骨模型
+    this.fingerBones = this._bonesLength.map((len, index) => {
+      let bone = BABYLON.MeshBuilder.CreateCylinder(`bone${index}`, { height: len, diameter: BONE_SIZE * SIZE_SCALE });
+      bone.setPivotMatrix(BABYLON.Matrix.Translation(0, len / 2, 0), false);
+      return bone;
+    });
+
+    // 定义手掌模型
+    this.palmBone = (() => {
+      let path = PALM_CONNECTIONS.map(i => new BABYLON.Vector3(...orthLandmarks[i]));
+      return BABYLON.MeshBuilder.CreateTube(`palm`, { path: path, radius: BONE_SIZE * SIZE_SCALE / 2 });
+    })();
+  }
+
+  setMeshRelation() {
+    // 手腕关节是所有手骨的父模型
+    this.palmBone.parent = this.joints[0];
+    // 手骨是其顺连关节的父模型
+    this.fingerBones.map((bone, index) => {
+      let joint = this.joints[FINGER_CONNECTIONS[index][1]];
+      joint.position.y = this._bonesLength[index] / 2;
+      joint.parent = bone;
+      bone.parent = this.joints[0];
+    });
+    // 手掌是手掌关节的父模型
+    PALM_CONNECTIONS.map(i => {
+      if (i === 0) return;
+      this.joints[i].parent = this.palmBone;
+    });
+  }
+
+  setMeshPosition(landmarks: number[][]) {
+    PALM_CONNECTIONS.map(i => {
+      this.joints[i].position = new BABYLON.Vector3(...landmarks[i]);
+    });
+    this.fingerBones.map((bone, index) => {
+      bone.position = new BABYLON.Vector3(...landmarks[FINGER_CONNECTIONS[index][0]]);
     });
   }
 
@@ -152,7 +185,6 @@ const createScene = function (canvas: HTMLCanvasElement, engine: BABYLON.Engine,
 
     // 如果捕捉到左手，更新左手坐标
     if (results.isLeftHandCaptured) {
-      console.log('l')
       if (!leftHand) {
         leftHand = new HandModel('left', results.leftLandmarks, new BABYLON.Color3(1, 0.4, 0.4), scene);
       }
@@ -161,7 +193,6 @@ const createScene = function (canvas: HTMLCanvasElement, engine: BABYLON.Engine,
 
     // 如果捕捉到右手，更新右手坐标
     if (results.isRightHandCaptured) {
-      console.log('r')
       if (!rightHand) {
         rightHand = new HandModel('right', results.rightLandmarks, new BABYLON.Color3(0.4, 0.58, 0.77), scene);
       }
