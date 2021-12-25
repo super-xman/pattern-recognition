@@ -1,6 +1,5 @@
-// import * as math from "mathjs";
 import * as BABYLON from "babylonjs";
-import { RefinedResults, getBonesLength, getOrthJoints } from "./data_utils";
+import { RefinedResults, getBonesLength, getOrthJoints, getAxes } from "./data_utils";
 
 const JOINTS_SIZE = [2, 1.7, 1.5, 1.2, 1, 1.4, 1, 1, 1, 1.5, 1, 1, 1, 1.4, 1, 1, 1, 1.3, 1, 1, 1]; // 关节尺寸
 const BONE_SIZE = 0.75;
@@ -34,51 +33,17 @@ class HandModel {
   constructor(handType: string, landmarks: number[][], color: BABYLON.Color3, scene: BABYLON.Scene) {
     this._scene = scene;
     this.isLeft = handType === 'left';
-    // 将手腕设为所有关节的父节点
-    // for (let joint of this.joints.slice(1)) {
-    //   this.joints[0].addChild(joint);
-    // }
     let orthLandmarks = getOrthJoints(landmarks, this.isLeft).joints;
-    this.createMeshes(orthLandmarks, color);
-    this.setMeshRelation();
-    this.setMeshPosition(orthLandmarks);
-  }
-
-  /**
-   * 更新各关节带点坐标
-   * @param landmarks
-   */
-  // updatePosition(landmarks: number[][]) {
-  //   this.joints.map((joint, index) => {
-  //     joint.position = new BABYLON.Vector3(...landmarks[index]);
-  //   })
-  // }
-
-  updatePosition(landmarks: number[][]) {
-    // 获取相对坐标轴和正则化后的关节坐标
-    let { joints, axes } = getOrthJoints(landmarks, this.isLeft);
-
-    // 局部坐标系的坐标轴向量
-    let vecs = axes.map((axis) => new BABYLON.Vector3(...axis));
-
-    // 将所有关节作为整体进行平移和旋转
-    // this.joints[0].rotation = BABYLON.Vector3.RotationFromAxis(vecs[0], vecs[1], vecs[2]);
-    // this.joints[0].position = new BABYLON.Vector3(...landmarks[0]);
-
-    // 确定手指关节坐标，通过关节1和方向向量推断出相邻关节2的坐标
-    FINGER_CONNECTIONS.map((group, index) => {
-      let vec1 = new BABYLON.Vector3(...joints[group[0]]);
-      let vec2 = new BABYLON.Vector3(...joints[group[1]]);
-      let offset = vec2.subtract(vec1).normalize().scale(this._bonesLength[index]);
-      this.joints[group[1]].position = this.joints[group[0]].position.add(offset);
-    });
+    this._createMeshes(orthLandmarks, color);
+    this._setMeshRelation();
+    this.updatePosition(landmarks);
   }
 
   /**
    * 设置初始关节和手骨位置。
    * @param orthLandmarks 关节点坐标
    */
-  createMeshes(orthLandmarks: number[][], color: BABYLON.Color3) {
+  private _createMeshes(orthLandmarks: number[][], color: BABYLON.Color3) {
     const jointMat = new BABYLON.StandardMaterial('mat', this._scene);
     jointMat.diffuseColor = color;
 
@@ -101,11 +66,20 @@ class HandModel {
       let path = PALM_CONNECTIONS.map(i => new BABYLON.Vector3(...orthLandmarks[i]));
       return BABYLON.MeshBuilder.CreateTube(`palm`, { path: path, radius: BONE_SIZE * SIZE_SCALE / 2 });
     })();
+
+    // 将关节模型定位到手掌上
+    PALM_CONNECTIONS.map(i => {
+      this.joints[i].position = new BABYLON.Vector3(...orthLandmarks[i]);
+    });
   }
 
-  setMeshRelation() {
+  /**
+   * 设置模型间的从属关系
+   */
+  private _setMeshRelation() {
     // 手腕关节是所有手骨的父模型
     this.palmBone.parent = this.joints[0];
+
     // 手骨是其顺连关节的父模型
     this.fingerBones.map((bone, index) => {
       let joint = this.joints[FINGER_CONNECTIONS[index][1]];
@@ -113,6 +87,7 @@ class HandModel {
       joint.parent = bone;
       bone.parent = this.joints[0];
     });
+
     // 手掌是手掌关节的父模型
     PALM_CONNECTIONS.map(i => {
       if (i === 0) return;
@@ -120,12 +95,25 @@ class HandModel {
     });
   }
 
-  setMeshPosition(landmarks: number[][]) {
-    PALM_CONNECTIONS.map(i => {
-      this.joints[i].position = new BABYLON.Vector3(...landmarks[i]);
-    });
-    this.fingerBones.map((bone, index) => {
-      bone.position = new BABYLON.Vector3(...landmarks[FINGER_CONNECTIONS[index][0]]);
+  /**
+   * 更新各关节带点坐标
+   * @param landmarks
+   */
+  updatePosition(landmarks: number[][]) {
+    // 根据手掌参照点旋转手掌模型
+    let axse = getAxes(landmarks[0], landmarks[5], landmarks[17], this.isLeft).map(axis => new BABYLON.Vector3(...axis));
+    this.palmBone.rotation = BABYLON.Vector3.RotationFromAxis(axse[0], axse[1], axse[2]);
+
+    // 根据手腕坐标平移整体模型
+    this.joints[0].position = new BABYLON.Vector3(...landmarks[0]);
+
+    // 平移和旋转手骨模型到指定位置
+    FINGER_CONNECTIONS.map((group, index) => {
+      let direction = new BABYLON.Vector3(...landmarks[group[1]]).subtract(new BABYLON.Vector3(...landmarks[group[0]]));
+      let axis = BABYLON.Axis.Y.cross(direction);
+      let angle = Math.acos(direction.y / direction.length());
+      this.fingerBones[index].rotationQuaternion = BABYLON.Quaternion.RotationAxis(axis, angle);
+      this.fingerBones[index].position = new BABYLON.Vector3(...landmarks[group[0]]).subtract(this.joints[0].position);
     });
   }
 
@@ -164,11 +152,11 @@ const createScene = function (canvas: HTMLCanvasElement, engine: BABYLON.Engine,
    * @param z z轴的终点坐标
    */
   function showAxis<T extends BABYLON.Vector3>(size: number, origin: T, x: T, y: T, z: T) {
-    var axisX = BABYLON.Mesh.CreateLines("axisX", [origin, origin.add(x.scale(size))]);
+    const axisX = BABYLON.Mesh.CreateLines("axisX", [origin, origin.add(x.scale(size))]);
     axisX.color = new BABYLON.Color3(1, 0, 0);
-    var axisY = BABYLON.Mesh.CreateLines("axisY", [origin, origin.add(y.scale(size))]);
+    const axisY = BABYLON.Mesh.CreateLines("axisY", [origin, origin.add(y.scale(size))]);
     axisY.color = new BABYLON.Color3(0, 1, 0);
-    var axisZ = BABYLON.Mesh.CreateLines("axisZ", [origin, origin.add(z.scale(size))]);
+    const axisZ = BABYLON.Mesh.CreateLines("axisZ", [origin, origin.add(z.scale(size))]);
     axisZ.color = new BABYLON.Color3(0, 0, 1);
   };
 

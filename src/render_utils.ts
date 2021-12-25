@@ -35,6 +35,7 @@ function createCtx2D(width: number, height: number): (results: HandData.OringinR
   }
 }
 
+
 /**
  * 创建三维画布环境，并绘制。
  * @param results 关节点识别结果
