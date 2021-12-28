@@ -13,11 +13,12 @@ const FINGER_CONNECTIONS = [ // 活动关节的连接信息
 const PALM_CONNECTIONS = [0, 1, 5, 9, 13, 17, 0]; // 手掌关节的连接信息
 const LENGTH_SCALE = 1; // 手骨长度缩放系数
 const SIZE_SCALE = 0.04; // 关节大小缩放系数
+const MOVE_SCALE = 1; // 平移放大系数
 
-const LEFTCOLOR = [255, 102, 102];
-const RIGHTCOLOR = [102, 148, 196];
-const LEFTBASE = [1, 0, 0];
-const RIGHTBASE = [-1, 0, 0];
+const LEFT_COLOR = [255, 102, 102];
+const RIGHT_COLOR = [102, 148, 196];
+const LEFT_BASE = [1, 0, 0];
+const RIGHT_BASE = [-1, 0, 0];
 
 class HandModel {
   private _scene: BABYLON.Scene;
@@ -34,6 +35,7 @@ class HandModel {
    * @param handType 'left' or 'right'
    * @param landmarks 各关节三维坐标
    * @param color 关节模型颜色
+   * @param basePoint 基准点，手模型会在基准点附近运动
    * @param scene 场景对象
    */
   constructor(handType: string, landmarks: number[][], color: number[], basePoint: number[], scene: BABYLON.Scene) {
@@ -44,7 +46,6 @@ class HandModel {
     let orthLandmarks = getOrthJoints(landmarks, this.isLeft).joints;
     this._createMeshes(orthLandmarks, new BABYLON.Color3(...color.map(c => c / 255)));
     this._setMeshRelation();
-    this.updatePosition(landmarks);
   }
 
   /**
@@ -114,7 +115,7 @@ class HandModel {
 
     // 根据手腕坐标平移整体模型
     let wristLandmark = new BABYLON.Vector3(...landmarks[0]);
-    this.joints[0].position = wristLandmark.subtract(this._primaryPoint).add(this._basePoint);
+    this.joints[0].position = wristLandmark.subtract(this._primaryPoint).scale(MOVE_SCALE).add(this._basePoint);
 
     // 平移和旋转手骨模型到指定位置
     FINGER_CONNECTIONS.map((group, index) => {
@@ -125,7 +126,6 @@ class HandModel {
       this.fingerBones[index].rotationQuaternion = BABYLON.Quaternion.RotationAxis(axis, angle);
       this.fingerBones[index].position = jointLandmark.subtract(wristLandmark);
     });
-
   }
 
   set bonesLength(length: number[]) {
@@ -185,17 +185,17 @@ const createScene = function (canvas: HTMLCanvasElement, engine: BABYLON.Engine,
     // 如果捕捉到左手，更新左手坐标
     if (results.isLeftHandCaptured) {
       if (!leftHand) {
-        leftHand = new HandModel('left', results.leftLandmarks, LEFTCOLOR, LEFTBASE, scene);
+        leftHand = new HandModel('left', results.leftLandmarks, LEFT_COLOR, LEFT_BASE, scene);
       }
-      // leftHand.updatePosition(results.leftLandmarks);
+      leftHand.updatePosition(results.leftLandmarks);
     }
 
     // 如果捕捉到右手，更新右手坐标
     if (results.isRightHandCaptured) {
       if (!rightHand) {
-        rightHand = new HandModel('right', results.rightLandmarks, RIGHTCOLOR, RIGHTBASE, scene);
+        rightHand = new HandModel('right', results.rightLandmarks, RIGHT_COLOR, RIGHT_BASE, scene);
       }
-      // rightHand.updatePosition(results.rightLandmarks);
+      rightHand.updatePosition(results.rightLandmarks);
     }
   });
   scene.debugLayer.show();
