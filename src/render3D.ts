@@ -45,7 +45,7 @@ class HandModel {
     this._basePoint = new BABYLON.Vector3(...basePoint);
     let orthLandmarks = getOrthJoints(landmarks, this.isLeft).joints;
     this._createMeshes(orthLandmarks, new BABYLON.Color3(...color.map(c => c / 255)));
-    this._setMeshRelation();
+    this._setMeshesRelation();
   }
 
   /**
@@ -85,7 +85,7 @@ class HandModel {
   /**
    * 设置模型间的从属关系
    */
-  private _setMeshRelation() {
+  private _setMeshesRelation() {
     // 手腕关节是所有手骨的父模型
     this.palmBone.parent = this.joints[0];
 
@@ -124,8 +124,20 @@ class HandModel {
       let axis = BABYLON.Axis.Y.cross(direction);
       let angle = Math.acos(direction.y / direction.length());
       this.fingerBones[index].rotationQuaternion = BABYLON.Quaternion.RotationAxis(axis, angle);
-      this.fingerBones[index].position = jointLandmark.subtract(wristLandmark);
+      this.fingerBones[index].position = this.joints[group[0]].getAbsolutePivotPoint().subtract(this.joints[0].position);
     });
+  }
+
+  // 显示/隐藏手模型
+  showMeshes(visibility: number) {
+    if (this.palmBone.visibility === visibility) return;
+    this.joints.map(joint => {
+      joint.visibility = visibility;
+    });
+    this.fingerBones.map(bone => {
+      bone.visibility = visibility;
+    });
+    this.palmBone.visibility = visibility;
   }
 
   set bonesLength(length: number[]) {
@@ -172,33 +184,31 @@ const createScene = function (canvas: HTMLCanvasElement, engine: BABYLON.Engine,
   };
 
   scene.registerBeforeRender(function () {
-    if (!results.isLeftHandCaptured && !results.isRightHandCaptured) {
-      return;
-    }
-
     // 第一次捕捉到手时初始化手掌坐标和手骨长度
     if (!leftHand && !rightHand) {
-      let landmarks = results.leftLandmarks || results.rightLandmarks;
-      HandModel.prototype.bonesLength = getBonesLength(landmarks, FINGER_CONNECTIONS, LENGTH_SCALE);
+      if (!results.isLeftHandCaptured && !results.isRightHandCaptured) return;
+      HandModel.prototype.bonesLength = getBonesLength(results.leftLandmarks || results.rightLandmarks, FINGER_CONNECTIONS, LENGTH_SCALE);
     }
 
     // 如果捕捉到左手，更新左手坐标
     if (results.isLeftHandCaptured) {
-      if (!leftHand) {
-        leftHand = new HandModel('left', results.leftLandmarks, LEFT_COLOR, LEFT_BASE, scene);
-      }
+      leftHand = leftHand || new HandModel('left', results.leftLandmarks, LEFT_COLOR, LEFT_BASE, scene);
+      leftHand.showMeshes(1);
       leftHand.updatePosition(results.leftLandmarks);
+    } else {
+      !leftHand || leftHand.showMeshes(0);
     }
 
     // 如果捕捉到右手，更新右手坐标
     if (results.isRightHandCaptured) {
-      if (!rightHand) {
-        rightHand = new HandModel('right', results.rightLandmarks, RIGHT_COLOR, RIGHT_BASE, scene);
-      }
+      rightHand = rightHand || new HandModel('right', results.rightLandmarks, RIGHT_COLOR, RIGHT_BASE, scene);
+      rightHand.showMeshes(1);
       rightHand.updatePosition(results.rightLandmarks);
+    } else {
+      !rightHand || rightHand.showMeshes(0);
     }
   });
-  scene.debugLayer.show();
+  // scene.debugLayer.show();
   return scene;
 };
 
