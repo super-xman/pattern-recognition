@@ -1,5 +1,6 @@
 import * as BABYLON from "babylonjs";
 import * as math from "mathjs";
+import { sign } from "mathjs";
 import { RefinedResults, getOrthJoints, getAxes, getRotateMatrix, getVecsAngle } from "./utils";
 
 const JOINTS_SIZE = [2, 1.7, 1.5, 1.2, 1, 1.4, 1, 1, 1, 1.5, 1, 1, 1, 1.4, 1, 1, 1, 1.3, 1, 1, 1]; // 关节尺寸
@@ -13,10 +14,10 @@ const BONE_LENGTH = [
 const PALM_JOINTS = new Map([
   [0, [0, 0, 0]],
   [1, [-0.0377495979457132, 0.0571060328058447, -0.02110707486659749]],
-  [5, [-1.1102230246251565e-16, 0.25110762324272273, -1.3877787807814457e-17]],
+  [5, [0, 0.25110762324272273, 0]],
   [9, [0.05022329996157915, 0.24951101244189366, 0.011326611131577222]],
   [13, [0.08963687514000007, 0.21369765203961089, 0.011026983237065184]],
-  [17, [0.11883115061908689, 0.154739311693879, -1.3877787807814457e-17]]
+  [17, [0.11883115061908689, 0.154739311693879, 0]]
 ]);
 const FINGER_CONNECTIONS = [ // 活动关节的连接信息
   [1, 2], [2, 3], [3, 4],
@@ -68,12 +69,12 @@ class HandModel {
     this._setMeshesRelation();
 
     showAxis(0.2, BABYLON.Vector3.Zero(), this.palmBone);
+    showAxis(0.1, BABYLON.Vector3.Zero(), this.joints[1]);
     showAxis(0.1, BABYLON.Vector3.Zero(), this.joints[2]);
-    showAxis(0.1, BABYLON.Vector3.Zero(), this.joints[6]);
-    showAxis(0.1, BABYLON.Vector3.Zero(), this.joints[10]);
-    showAxis(0.1, BABYLON.Vector3.Zero(), this.joints[14]);
-    showAxis(0.1, BABYLON.Vector3.Zero(), this.joints[18]);
-
+    // showAxis(0.1, BABYLON.Vector3.Zero(), this.joints[6]);
+    // showAxis(0.1, BABYLON.Vector3.Zero(), this.joints[10]);
+    // showAxis(0.1, BABYLON.Vector3.Zero(), this.joints[14]);
+    // showAxis(0.1, BABYLON.Vector3.Zero(), this.joints[18]);
   }
 
   /**
@@ -105,9 +106,14 @@ class HandModel {
     })();
 
     // 将关节模型定位到手掌上
-    this._palmJoints.forEach((v, i: number) => {
+    this._palmJoints.forEach((v: number[], i: number) => {
+      if (i === 0) return;
       this.joints[i].position = new BABYLON.Vector3(...v).scale(BONE_LENGTH_SCALE);
     });
+
+    // 大拇指关节的基准坐标需要单独定义
+    let angle = this.isLeft ? -1.5 : 1.5;
+    this.joints[2].rotate(BABYLON.Axis.Y, angle);
   }
 
   /**
@@ -151,28 +157,36 @@ class HandModel {
 
     // 平移和旋转手骨模型到指定位置
     FINGER_CONNECTIONS.map((group, index) => {
-      let axis: BABYLON.Vector3;
-      let angle: number;
+      let direction1: number[]; // 关节 1 方向
+      let direction2: number[]; // 关节 2 方向
+      let angle: number; // 关节 1 与关节 2 的夹角
+      let axis = BABYLON.Axis.X; // 默认旋转轴为关节局部空间的 x 轴
 
       if (index % 3 > 0) {
-        let direction1 = math.subtract(landmarks[group[0]], landmarks[FINGER_CONNECTIONS[index - 1][0]]) as number[];
-        let direction2 = math.subtract(landmarks[group[1]], landmarks[group[0]]) as number[];
-        angle = getVecsAngle(direction1, direction2);
-        axis = BABYLON.Axis.X;
+        direction1 = math.subtract(landmarks[group[0]], landmarks[FINGER_CONNECTIONS[index - 1][0]]) as number[];
+        direction2 = math.subtract(landmarks[group[1]], landmarks[group[0]]) as number[];
       } else {
-        let direction1 = [0, 1, 0];
-        let direction2 = math.multiply(rotateMatrix, math.subtract(landmarks[group[1]], landmarks[group[0]])).toArray() as number[];
-        angle = getVecsAngle(direction1, direction2);
-        // if (math.abs(direction2[0]) > 0.4) {
-        //   direction2 = [0.4 * math.sign(direction2[0]), 0.6 * (direction2[1] / (direction2[1] + direction2[2])), 0.6 * (direction2[2] / (direction2[1] + direction2[2]))];
-        // }
-        axis = new BABYLON.Vector3(...math.cross(direction1, direction2) as number[]).normalize();
-        axis.z = math.min(math.max(0, axis.z), 0.5);
-        console.log(axis.z);
+        direction1 = [0, 1, 0];
+        direction2 = math.multiply(rotateMatrix, math.subtract(landmarks[group[1]], landmarks[group[0]])).toArray() as number[];
+        if (index === 0) {
+          axis = new BABYLON.Vector3(...<number[]>math.cross(direction1, direction2));
+          // 拇指灵活性强，旋转轴根据拇指的实际指向来确定
+        } else {
+          let sign = this.isLeft ? 1 : -1;
+          this.joints[group[0]].rotation.z = sign * math.min(0.7, math.acos(direction2[1] / <number>math.norm([direction2[0], direction2[1]])));
+          // 除拇指外的四指旋转需要绕 z 轴旋转（四指张开或并拢）
+        }
       }
 
-      this.fingerBones[index].rotationQuaternion = BABYLON.Quaternion.RotationAxis(axis, math.min([angle, 1.57]));
-      this.fingerBones[0].rotate(BABYLON.Axis.Y, -1);
+      // 计算旋转角度
+      angle = getVecsAngle(direction1, direction2);
+      if (index === 2) {
+        let sign = (<number[]>math.cross(direction1, direction2))[2] > 0 ? -1 : 1; // 大拇指指尖可以一定程度上反向旋转，反向为-1
+        angle *= this.isLeft ? sign : -sign; // 左右手sign值相反
+      }
+
+      // 旋转手骨
+      this.fingerBones[index].rotationQuaternion = BABYLON.Quaternion.RotationAxis(axis, math.min([angle, 2]));
     });
   }
 
