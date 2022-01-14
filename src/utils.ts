@@ -107,10 +107,11 @@ class CurrentResults implements RefinedResults {
       this.rightLandmarks = this.isRightHandCaptured && landmarks;
     },
     function (results: OringinResults) {
+      let label = results.multiHandedness[0].label;
       this.isLeftHandCaptured = true;
       this.isRightHandCaptured = true;
-      this.leftLandmarks = results.multiHandLandmarks[0].map((joint) => [joint.x, -joint.y, joint.z]);
-      this.rightLandmarks = results.multiHandLandmarks[1].map((joint) => [joint.x, -joint.y, joint.z]);
+      this.leftLandmarks = results.multiHandLandmarks[Number(label === "Left")].map((joint) => [joint.x, -joint.y, joint.z]);
+      this.rightLandmarks = results.multiHandLandmarks[Number(label === "Right")].map((joint) => [joint.x, -joint.y, joint.z]);
     }
   ];
 
@@ -119,7 +120,7 @@ class CurrentResults implements RefinedResults {
    * @param results 识别结果的原始数据，包含关节点坐标，标签，置信度等
    */
   update(results: OringinResults) {
-    this._strategies[results.multiHandLandmarks.length].call(this, results);
+    this._strategies[Math.min(results.multiHandLandmarks.length, 2)].call(this, results);
   }
 }
 
@@ -144,7 +145,7 @@ function normVec<T extends math.Matrix | math.MathArray>(v1: T, v2: T): T {
  * @param p3 基准点3
  * @returns 坐标轴向量
  */
-function getAxes(p1: number[], p2: number[], p3: number[], isLeft: boolean) {
+function getAxes(p1: number[], p2: number[], p3: number[], isLeft: boolean): number[][] {
   // 计算以基准点构建的局部坐标系
   var vy: number[] = math.subtract(p2, p1) as number[];
   var ux: number[] = math.subtract(p3, p1) as number[];
@@ -214,4 +215,29 @@ function getBonesLength(landmarks: number[][], connections: number[][], scale = 
 }
 
 
-export { OringinResults, RefinedResults, CurrentResults, getBonesLength, getAxes, getOrthJoints, testData };
+/**
+ * 根据绕 x,y,z 轴的旋转角度（弧度值）计算整体旋转矩阵。
+ * @param rotX 绕 x 轴的旋转角度
+ * @param rotY 绕 y 轴的旋转角度
+ * @param rotZ 绕 z 轴的旋转角度
+ * @returns 旋转矩阵
+ */
+function getRotateMatrix(rotX: number, rotY: number, rotZ: number): math.Matrix {
+  let matX = math.matrix([[1, 0, 0], [0, Math.cos(rotX), -Math.sin(rotX)], [0, Math.sin(rotX), Math.cos(rotX)]]);
+  let matY = math.matrix([[Math.cos(rotY), 0, Math.sin(rotY)], [0, 1, 0], [-Math.sin(rotY), 0, Math.cos(rotY)]]);
+  let matZ = math.matrix([[Math.cos(rotZ), -Math.sin(rotZ), 0], [Math.sin(rotZ), Math.cos(rotZ), 0], [0, 0, 1]]);
+  return math.multiply(matZ, math.multiply(matY, matX));
+}
+
+/**
+ * 求两向量之间的夹角。
+ * @param vec1
+ * @param vec2
+ * @returns 夹角（弧度值）
+ */
+function getVecsAngle(vec1: number[], vec2: number[]): number {
+  let cos = math.dot(vec1, vec2) / (<number>math.norm(vec1) * <number>math.norm(vec2));
+  return math.acos(cos);
+}
+
+export { OringinResults, RefinedResults, CurrentResults, testData, getAxes, getOrthJoints, getRotateMatrix, getVecsAngle };

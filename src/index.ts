@@ -18,6 +18,7 @@ camera.start();
 // 加载模型
 const hands = new Hands({
   locateFile: (file: string) => {
+    console.log(file);
     return `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`;
   }
 });
