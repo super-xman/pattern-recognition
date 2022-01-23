@@ -1,8 +1,8 @@
 import { Engine } from "babylonjs";
 import { HAND_CONNECTIONS } from "../public/hands";
 import { drawConnectors, drawLandmarks } from "../public/drawing_utils";
-import * as HandData from "./utils";
-import createScene from "./render3D";
+import { OringinResults, RefinedResults, CurrentResults } from "./utils";
+import createScene from "./scene";
 
 const canvas = document.querySelector("#canvas") as HTMLCanvasElement;
 
@@ -13,7 +13,7 @@ const canvas = document.querySelector("#canvas") as HTMLCanvasElement;
  * @param height 画布高度
  * @return 绘制函数
  */
-function createCtx2D(width: number, height: number): (results: HandData.OringinResults) => void {
+function createCtx2D(width: number, height: number): (results: OringinResults) => void {
   const canvasCtx = canvas.getContext("2d");
 
   canvas.width = width;
@@ -40,7 +40,7 @@ function createCtx2D(width: number, height: number): (results: HandData.OringinR
  * 创建三维画布环境，并绘制。
  * @param results 关节点识别结果
  */
-function createCtx3D(results: HandData.RefinedResults) {
+function createCtx3D(results: RefinedResults) {
   const engine = new Engine(canvas, true);
 
   window.addEventListener("resize", function () {
@@ -55,7 +55,7 @@ function createCtx3D(results: HandData.RefinedResults) {
 
 
 type Hands = {
-  onResults: (arg0: (results: HandData.OringinResults) => void) => void;
+  onResults: (arg0: (results: OringinResults) => void) => void;
 }
 
 /**
@@ -66,7 +66,7 @@ type Hands = {
  */
 function render2D(hands: Hands, width = 1280, height = 720) {
   const render = createCtx2D(width, height);
-  const onResults = (results: HandData.OringinResults) => {
+  const onResults = (results: OringinResults) => {
     render(results);
   }
   hands.onResults(onResults);
@@ -78,8 +78,8 @@ function render2D(hands: Hands, width = 1280, height = 720) {
  * @param hands 手的识别结果，包含数据处理方法 onResult，每帧调用一次
  */
 function render3D(hands: Hands) {
-  const currentResults = new HandData.CurrentResults();
-  const onResults = (results: HandData.OringinResults) => {
+  const currentResults = new CurrentResults();
+  const onResults = (results: OringinResults) => {
     currentResults.update(results);
   }
   hands.onResults(onResults);

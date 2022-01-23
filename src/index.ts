@@ -1,7 +1,7 @@
 // import * as math from "../public/math.min";
 import Camera from "../public/camera_utils";
 import { Hands } from "../public/hands";
-import { render2D, render3D } from "./render_utils";
+import { render2D, render3D } from "./render";
 
 const videoElement = document.getElementsByClassName('input_video')[0];
 

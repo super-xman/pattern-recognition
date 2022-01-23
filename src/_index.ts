@@ -1,6 +1,6 @@
 import { Engine } from "babylonjs";
 import * as HandData from "./utils";
-import createScene from "./render3D";
+import createScene from "./scene";
 
 const canvas = document.querySelector("#canvas") as HTMLCanvasElement;
 

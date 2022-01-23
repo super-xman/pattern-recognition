@@ -25,8 +25,6 @@ interface TestData {
   rightHand: RefinedResults;
 }
 
-const REFERENCE = [0, 5, 17] //基准参考系
-
 const testData: TestData = {
   leftHand: {
     isLeftHandCaptured: true,
@@ -129,28 +127,27 @@ class CurrentResults implements RefinedResults {
  * 获取两向量围成的平面的法向量。
  * @param v1 向量1
  * @param v2 向量2
- * @returns 两向量叉积的标准化结果：v1 x v2
+ * @returns 两向量叉积：v1 x v2
  */
-function normVec<T extends math.Matrix | math.MathArray>(v1: T, v2: T): T {
-  var mat = math.cross(v1, v2);
-  var den = math.norm(mat);
-  return math.divide(mat, den) as T;
+function _normVec<T extends math.Matrix | math.MathArray>(v1: T, v2: T): T {
+  return math.cross(v1, v2) as T;
 }
 
 
 /**
- * 根据给定基准点求出局部坐标系的坐标轴向量。
+ * 根据手掌的三个基准点求出局部坐标系的坐标轴向量。
  * @param p1 基准点1（原点）
  * @param p2 基准点2
  * @param p3 基准点3
+ * @param isLeft 是否为左手
  * @returns 坐标轴向量
  */
-function getAxes(p1: number[], p2: number[], p3: number[], isLeft: boolean): number[][] {
+function getAxes(landmarks: number[][], isLeft: boolean): number[][] {
   // 计算以基准点构建的局部坐标系
-  var vy: number[] = math.subtract(p2, p1) as number[];
-  var ux: number[] = math.subtract(p3, p1) as number[];
-  var vz: number[] = isLeft ? normVec(vy, ux) : normVec(ux, vy);
-  var vx: number[] = normVec(vy, vz);
+  var vy: number[] = math.subtract(landmarks[5], landmarks[0]) as number[];
+  var ux: number[] = math.subtract(landmarks[17], landmarks[0]) as number[];
+  var vz: number[] = isLeft ? _normVec(vy, ux) : _normVec(ux, vy);
+  var vx: number[] = _normVec(vy, vz);
   return [vx, vy, vz];
 }
 
@@ -166,15 +163,13 @@ interface OrthJoints {
  * @param refer 用于确定基准参考系的三个关节点索引
  * @returns 变换坐标系后的各关节点三维坐标及手掌坐标系
  */
-function getOrthJoints(data: number[][], isLeft: boolean, refer = REFERENCE): OrthJoints {
-  // 掌心的三个关节作为基准点
-  var [p1, p2, p3]: [number[], number[], number[]] = [data[refer[0]], data[refer[1]], data[refer[2]]];
+function getOrthJoints(data: number[][], isLeft: boolean): OrthJoints {
   // 局部坐标系的坐标轴向量
-  var [vx, vy, vz] = getAxes(p1, p2, p3, isLeft);
+  var [vx, vy, vz] = getAxes(data, isLeft);
 
   // 求将局部坐标系旋转到与世界坐标系 z 轴重合的旋转矩阵 R1
   var uz: number[] = vz;
-  var uy: number[] = normVec(vz, [1, 0, 0]);
+  var uy: number[] = _normVec(vz, [1, 0, 0]);
   var ux: number[] = math.cross(uy, uz) as number[];
   var R1: math.Matrix = math.matrix([ux.concat([0]), uy.concat([0]), uz.concat([0]), [0, 0, 0, 1]]);
 
@@ -185,7 +180,7 @@ function getOrthJoints(data: number[][], isLeft: boolean, refer = REFERENCE): Or
   var R2: math.Matrix = math.matrix([[cos, -sin, 0, 0], [sin, cos, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]]);
 
   // 平移矩阵T
-  var T: math.Matrix = math.matrix([[1, 0, 0, -p1[0]], [0, 1, 0, -p1[1]], [0, 0, 1, -p1[2]], [0, 0, 0, 1]]);
+  var T: math.Matrix = math.matrix([[1, 0, 0, -data[0][0]], [0, 1, 0, -data[0][1]], [0, 0, 1, -data[0][2]], [0, 0, 0, 1]]);
   // 合并 R2、R1、T 得到变换矩阵
   var tran: math.Matrix = math.multiply(math.multiply(R2, R1), T);
   // 计算变换坐标系后的关节点坐标
@@ -229,6 +224,7 @@ function getRotateMatrix(rotX: number, rotY: number, rotZ: number): math.Matrix 
   return math.multiply(matZ, math.multiply(matY, matX));
 }
 
+
 /**
  * 求两向量之间的夹角。
  * @param vec1
@@ -240,4 +236,33 @@ function getVecsAngle(vec1: number[], vec2: number[]): number {
   return math.acos(cos);
 }
 
-export { OringinResults, RefinedResults, CurrentResults, testData, getAxes, getOrthJoints, getRotateMatrix, getVecsAngle };
+
+/**
+ * 检测是否处于捏的动作状态。
+ * @param landmarks 各关节点三维坐标
+ * @returns 拇指指尖与食指指尖的相对距离
+ */
+function isPinching(landmarks: number[][]) {
+  let distance = math.norm(math.subtract(landmarks[4], landmarks[8]) as number[]) as number;
+  return distance < 0.1;
+}
+
+
+function getGraspStrength(landmarks: number[][]) {
+  let finger1_0 = math.subtract(landmarks[6], landmarks[5]) as number[];
+  let finger1_1 = math.subtract(landmarks[7], landmarks[6]) as number[];
+  let finger2_0 = math.subtract(landmarks[10], landmarks[9]) as number[];
+  let finger2_1 = math.subtract(landmarks[11], landmarks[10]) as number[];
+  let finger3_0 = math.subtract(landmarks[14], landmarks[13]) as number[];
+  let finger3_1 = math.subtract(landmarks[15], landmarks[14]) as number[];
+  let finger4_0 = math.subtract(landmarks[18], landmarks[17]) as number[];
+  let finger4_1 = math.subtract(landmarks[19], landmarks[18]) as number[];
+  let cos1 = math.divide(math.dot(finger1_0, finger1_1), <number>math.norm(finger1_0) * <number>math.norm(finger1_1));
+  let cos2 = math.divide(math.dot(finger2_0, finger2_1), <number>math.norm(finger2_0) * <number>math.norm(finger2_1));
+  let cos3 = math.divide(math.dot(finger3_0, finger3_1), <number>math.norm(finger3_0) * <number>math.norm(finger3_1));
+  let cos4 = math.divide(math.dot(finger4_0, finger4_1), <number>math.norm(finger4_0) * <number>math.norm(finger4_1));
+  return math.max(cos1, cos2, cos3, cos4);
+}
+
+
+export { OringinResults, RefinedResults, CurrentResults, testData, getAxes, getOrthJoints, getRotateMatrix, getVecsAngle, isPinching, getGraspStrength };
