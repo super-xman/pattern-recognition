@@ -244,10 +244,15 @@ function getVecsAngle(vec1: number[], vec2: number[]): number {
  */
 function isPinching(landmarks: number[][]) {
   let distance = math.norm(math.subtract(landmarks[4], landmarks[8]) as number[]) as number;
-  return distance < 0.1;
+  return distance < 0.08;
 }
 
 
+/**
+ * 获取手的握紧程度
+ * @param landmarks 
+ * @returns 0~1，越小表示握的越紧
+ */
 function getGraspStrength(landmarks: number[][]) {
   let finger1_0 = math.subtract(landmarks[6], landmarks[5]) as number[];
   let finger1_1 = math.subtract(landmarks[7], landmarks[6]) as number[];
@@ -261,6 +266,7 @@ function getGraspStrength(landmarks: number[][]) {
   let cos2 = math.divide(math.dot(finger2_0, finger2_1), <number>math.norm(finger2_0) * <number>math.norm(finger2_1));
   let cos3 = math.divide(math.dot(finger3_0, finger3_1), <number>math.norm(finger3_0) * <number>math.norm(finger3_1));
   let cos4 = math.divide(math.dot(finger4_0, finger4_1), <number>math.norm(finger4_0) * <number>math.norm(finger4_1));
+  console.log(math.max(cos1, cos2, cos3, cos4))
   return math.max(cos1, cos2, cos3, cos4);
 }
 

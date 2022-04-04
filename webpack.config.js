@@ -13,7 +13,7 @@ module.exports = {
   module: {
     rules: [
       {
-        test: /\.(png|jpe?g|gif)$/,
+        test: /\.(png|jpe?g|gif|babylon|obj|glb)$/,
         type: 'asset',
         generator: {
           filename: 'img/[name].[hash:4][ext]'
@@ -28,7 +28,11 @@ module.exports = {
         test: /\.tsx?$/,
         use: 'ts-loader',
         exclude: /node_modules/
-      }
+      },
+      // {
+      //   test: /\.(babylon|obj|glb)$/,
+      //   loader: 'url-loader',
+      // }
     ]
   },
   plugins: [
