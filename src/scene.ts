@@ -1,4 +1,5 @@
 import * as BABYLON from "babylonjs";
+import { BoneAxesViewer } from "babylonjs";
 import * as math from "mathjs";
 import * as Recog from "./utils";
 
@@ -32,8 +33,8 @@ const MOVE_SCALE = 2; // 平移放大系数
 
 const LEFT_COLOR = [255, 102, 102];
 const RIGHT_COLOR = [102, 148, 196];
-const LEFT_BASE = [0.3, 0, 0];
-const RIGHT_BASE = [-0.3, 0, 0];
+const LEFT_BASE = [-0.5, 0, 4];
+const RIGHT_BASE = [0.5, 0, 4];
 
 class HandModel {
   private _scene: BABYLON.Scene;
@@ -54,10 +55,10 @@ class HandModel {
    * @param basePoint 基准点，手模型会在基准点附近运动
    * @param scene 场景对象
    */
-  constructor(handType: string, landmarks: number[][], color: number[], basePoint: number[], scene: BABYLON.Scene) {
+  constructor(handType: string, landmarks: number[][], color: number[], basePoint: number[], scene: BABYLON.Scene, camera: BABYLON.Camera) {
     this.isLeft = handType === 'left';
     this._scene = scene;
-    this._primaryPoint = new BABYLON.Vector3(...landmarks[0]);
+    this._primaryPoint = new BABYLON.Vector3(-landmarks[0][0], landmarks[0][1], 0); // 初始点不记录z轴坐标
     this.basePoint = new BABYLON.Vector3(...basePoint);
 
     PALM_JOINTS.forEach((value, key) => {
@@ -65,7 +66,7 @@ class HandModel {
     });
 
     this._createMeshes(new BABYLON.Color3(...color.map(c => c / 255)));
-    this._setMeshesRelation();
+    this._setMeshesRelation(camera);
   }
 
   /**
@@ -110,10 +111,10 @@ class HandModel {
   /**
    * 设置模型间的从属关系
    */
-  private _setMeshesRelation() {
+  private _setMeshesRelation(camera: BABYLON.Camera) {
     // 手腕关节是所有手骨的父模型
     this.palmBone.parent = this.joints[0];
-
+    this.joints[0].parent = camera;
     // 手骨是其顺连关节的父模型
     this.fingerBones.map((bone, index) => {
       let joint = this.joints[FINGER_CONNECTIONS[index][1]];
@@ -137,13 +138,14 @@ class HandModel {
   updatePosition(landmarks: number[][]) {
     // 根据手掌参照点旋转手掌模型
     let axse = Recog.getAxes(landmarks, this.isLeft).map(axis => new BABYLON.Vector3(...axis));
-    this.palmBone.rotation = BABYLON.Vector3.RotationFromAxis(axse[0], axse[1], axse[2]);
+    this.palmBone.rotation = BABYLON.Vector3.RotationFromAxis(axse[0].scale(-1), axse[1], axse[2].scale(-1));
 
     // 将手掌变换至基准坐标系的旋转矩阵(3x3)
     let rotateMatrix = Recog.getRotateMatrix(-this.palmBone.rotation.x, -this.palmBone.rotation.y, -this.palmBone.rotation.z);
 
     // 根据手腕坐标平移整体模型
-    let wristLandmark = new BABYLON.Vector3(...landmarks[0]);
+    let wristLandmark = new BABYLON.Vector3(-landmarks[0][0], landmarks[0][1], 0); // 不设置手腕的z轴坐标
+    // let wristLandmark = new BABYLON.Vector3(...landmarks[0]);
     this.joints[0].position = wristLandmark.subtract(this._primaryPoint).scale(MOVE_SCALE).add(this.basePoint);
 
     // 平移和旋转手骨模型到指定位置
@@ -160,7 +162,7 @@ class HandModel {
         direction1 = [0, 1, 0];
         direction2 = math.multiply(rotateMatrix, math.subtract(landmarks[group[1]], landmarks[group[0]])).toArray() as number[];
         if (index === 0) {
-          axis = new BABYLON.Vector3(...<number[]>math.cross(direction1, direction2));
+          axis = new BABYLON.Vector3(...<number[]>math.cross(direction2, direction1));
           // 拇指灵活性强，旋转轴根据拇指的实际指向来确定
         } else {
           let sign = this.isLeft ? 1 : -1;
@@ -201,7 +203,6 @@ class HandModel {
   }
 }
 
-
 /**
  * 创建三维场景对象，包含相机、灯光、三维模型。
  * @param canvas 画布元素
@@ -211,15 +212,20 @@ class HandModel {
  */
 const createScene = function (canvas: HTMLCanvasElement, engine: BABYLON.Engine, results: Recog.RefinedResults): BABYLON.Scene {
   const scene = new BABYLON.Scene(engine);
-  const camera = new BABYLON.ArcRotateCamera("camera", Math.PI / 2, Math.PI / 2.5, 3, new BABYLON.Vector3(0, 0, 0), scene);
-  // const light = new BABYLON.HemisphericLight("light", new BABYLON.Vector3(0, 1, 0), scene); // 灯光
+  scene.clearColor = new BABYLON.Color4(0, 0, 0, 1);
+  const camera = new BABYLON.ArcRotateCamera("camera", Math.PI / 2, Math.PI / 2.5, 3, BABYLON.Vector3.Zero(), scene);
+  // const light0 = new BABYLON.HemisphericLight("light", new BABYLON.Vector3(0, 1, 0), scene); // 灯光
   const light = (new BABYLON.DirectionalLight("Dir1", new BABYLON.Vector3(-10, 20, 0), scene), new BABYLON.DirectionalLight("Dir2", new BABYLON.Vector3(10, -15, 0), scene), new BABYLON.DirectionalLight("Dir3", new BABYLON.Vector3(-10, -0, 0), scene));
+  // const box = BABYLON.MeshBuilder.CreateBox("Box", { size: 1 });
 
-  const mat = new BABYLON.StandardMaterial("texture1", scene);
-  const box = BABYLON.MeshBuilder.CreateBox("Box", { size: 1 });
-  mat.alpha = 1;
-  box.material = mat;
-  box.setPivotPoint(BABYLON.Vector3.Zero());
+  let meshes = Array(24);
+  window.addEventListener('keydown', function (e) {
+    if (e.code === 'KeyQ') {
+      meshes.map(mesh => {
+        mesh.position = mesh.position.scale(3);
+      });
+    }
+  })
 
   const root = "https://walkclass-vr.oss-cn-hangzhou.aliyuncs.com/yuzelin/model/jetEngine/";
   BABYLON.SceneLoader.ImportMesh("", root, "jetEngine2.babylon", scene, function (e) {
@@ -237,12 +243,12 @@ const createScene = function (canvas: HTMLCanvasElement, engine: BABYLON.Engine,
     mat2.wireframe = true;
     mat2.alpha = 0.5;
 
-    for (let mesh of e) {
-      mesh.material = mat2;
-      mesh.position = mesh.position.scale(0.01);
-      console.log(mesh.position);
-      mesh.scaling = new BABYLON.Vector3(.01, .01, .01);
-      mesh.parent = box;
+    for (let i = 0; i < e.length; i++) {
+      meshes[i] = e[i];
+      meshes[i].material = mat1;
+      meshes[i].scaling = new BABYLON.Vector3(.01, .01, .01);
+      meshes[i].position = meshes[i].position.scale(0.01);
+      // mesh.parent = boxes[i];
     }
   });
 
@@ -253,17 +259,17 @@ const createScene = function (canvas: HTMLCanvasElement, engine: BABYLON.Engine,
   let leftHand: HandModel | null = null;
   let rightHand: HandModel | null = null;
 
-  camera.upperRadiusLimit = 100; // 相机的最远距离
-  camera.lowerRadiusLimit = 1; // 相机的最近距离
+  // camera.upperRadiusLimit = 100; // 相机的最远距离
+  // camera.lowerRadiusLimit = 1; // 相机的最近距离
+  camera.radius = 10;
   camera.attachControl(canvas, true);
-  showAxis(4, BABYLON.Vector3.Zero());
-  // showGround();
-  // showBox();
+
+  // showAxis(4, BABYLON.Vector3.Zero());
 
   scene.registerBeforeRender(function () {
     // 如果捕捉到左手，更新左手坐标
     if (results.isLeftHandCaptured) {
-      leftHand = leftHand || new HandModel('left', results.leftLandmarks, LEFT_COLOR, LEFT_BASE, scene);
+      leftHand = leftHand || new HandModel('left', results.leftLandmarks, LEFT_COLOR, LEFT_BASE, scene, camera);
       leftHand.showMeshes(1);
       leftHand.updatePosition(results.leftLandmarks);
     } else {
@@ -272,17 +278,17 @@ const createScene = function (canvas: HTMLCanvasElement, engine: BABYLON.Engine,
 
     // 如果捕捉到右手，更新右手坐标
     if (results.isRightHandCaptured) {
-      rightHand = rightHand || new HandModel('right', results.rightLandmarks, RIGHT_COLOR, RIGHT_BASE, scene);
+      rightHand = rightHand || new HandModel('right', results.rightLandmarks, RIGHT_COLOR, RIGHT_BASE, scene, camera);
       rightHand.showMeshes(1);
       rightHand.updatePosition(results.rightLandmarks);
     } else {
       !rightHand || rightHand.showMeshes(0);
     }
 
-    pinch(box, results, leftHand, rightHand, camera);
+    pinch(results, leftHand, rightHand, camera);
     grasp(results, leftHand, rightHand, camera);
   });
-  scene.debugLayer.show();
+  // scene.debugLayer.show();
   return scene;
 };
 
@@ -309,72 +315,56 @@ function showAxis<T extends BABYLON.Vector3>(size: number, origin: T, parentMesh
 
 
 function pinchEffect() {
-  let lastLeftPos: null | BABYLON.Vector3 = null;
-  let lastRightPos: null | BABYLON.Vector3 = null;
-
-  function moveTo(target: BABYLON.Mesh, camera: BABYLON.ArcRotateCamera, leftHand: HandModel, rightHand: HandModel) {
-    if (lastLeftPos && lastRightPos) {
-      let preDistance = math.abs(lastRightPos.x - lastLeftPos.x);
-      let curDistance = math.abs(rightHand.joints[4].absolutePosition.x - leftHand.joints[4].absolutePosition.x);
-      let direction = target.position.subtract(camera.position).normalize().scale(0.1);
-      let sign = math.abs(curDistance - preDistance) < 1e-4 ? 0 : math.sign(curDistance - preDistance);
-      camera.radius -= math.max(0.2 * camera.radius, 0.1) * sign;
-      leftHand.basePoint.addInPlace(direction.scale(sign));
-      rightHand.basePoint.addInPlace(direction.scale(sign));
-    }
-    lastLeftPos = leftHand.joints[4].absolutePosition.add(BABYLON.Vector3.Zero());
-    lastRightPos = rightHand.joints[4].absolutePosition.add(BABYLON.Vector3.Zero());
-  }
+  let lastLeftPos: BABYLON.Vector3;
+  let lastRightPos: BABYLON.Vector3;
+  let lastState = 0; //状态值：0-空状态；1-旋转；2-缩放；
 
   /**
- * 平移目标对象
- * @param target 目标对象
- */
-  function move(target: BABYLON.Mesh, leftHand: HandModel) {
-    if (lastLeftPos) {
-      let direction = leftHand.joints[4].absolutePosition.subtract(lastLeftPos);
-      let len = direction.length();
-      target.translate(direction, len < 1e-4 || len > 0.1 ? 0 : 1);
-    }
-    lastLeftPos = leftHand.joints[4].absolutePosition.add(BABYLON.Vector3.Zero());
-    lastRightPos = null;
-  }
-
-  /**
-   * 旋转目标对象
-   * @param target 目标对象
+   * 调整相机远近
+   * @param camera 相机
    */
-  function rotate(target: BABYLON.Mesh, rightHand: HandModel) {
-    if (lastRightPos) {
-      let pre = lastRightPos.subtract(target.position);
-      let cur = rightHand.joints[4].absolutePosition.subtract(target.position);
-      let axis = pre.cross(cur);
-      let angle = math.acos(math.min(1, (pre.x * cur.x + pre.y * cur.y + pre.z * cur.z) / (pre.length() * cur.length())));
-      target.rotate(axis, math.max(0.1, angle));
+  function scale(camera: BABYLON.ArcRotateCamera, leftHand: HandModel, rightHand: HandModel) {
+    let preDistance = math.abs(lastRightPos.x - lastLeftPos.x);
+    let curDistance = math.abs(rightHand.joints[0].position.x - leftHand.joints[0].position.x);
+    if (math.abs(curDistance - preDistance) > 0.02) {
+      let sign = math.sign(curDistance - preDistance);
+      camera.radius -= math.max(0.05 * camera.radius, 0.1) * sign;
     }
-    lastRightPos = rightHand.joints[4].absolutePosition.add(BABYLON.Vector3.Zero());
-    lastLeftPos = null;
   }
 
-  return (target: BABYLON.Mesh, results: Recog.RefinedResults, leftHand: HandModel, rightHand: HandModel, camera: BABYLON.ArcRotateCamera) => {
+  /**
+   * 旋转相机视角
+   * @param camera 相机
+   */
+  function rotate(camera: BABYLON.ArcRotateCamera, hand: HandModel) {
+    let offset = hand.joints[0].position.subtract(lastLeftPos);
+    if (offset.length() > 0.01) {
+      camera.alpha -= offset.x * 2;
+      camera.beta = math.max(0, (math.min(camera.beta + offset.y * 2, math.pi)));
+    }
+  }
+
+  return (results: Recog.RefinedResults, leftHand: HandModel, rightHand: HandModel, camera: BABYLON.ArcRotateCamera) => {
     let leftPinch = results.isLeftHandCaptured && Recog.isPinching(results.leftLandmarks);
     let rightPinch = results.isRightHandCaptured && Recog.isPinching(results.rightLandmarks);
-
-    if (leftPinch && rightPinch) {
-      moveTo(target, camera, leftHand, rightHand);
+    if ((lastState === 0 || lastState === 2) && leftPinch && rightPinch) {
+      if (lastState === 2) {
+        scale(camera, leftHand, rightHand);
+      }
+      lastLeftPos = leftHand.joints[0].position.add(BABYLON.Vector3.Zero()); // add后变成深拷贝
+      lastRightPos = rightHand.joints[0].position.add(BABYLON.Vector3.Zero());
+      lastState = 2;
     }
-    else if (rightPinch) {
-      rotate(target, rightHand);
-    }
-    else if (leftPinch) {
-      move(target, leftHand);
+    else if ((lastState === 0 || lastState === 1) && leftPinch) {
+      if (lastState === 1) {
+        rotate(camera, leftHand);
+      }
+      lastLeftPos = leftHand.joints[0].position.add(BABYLON.Vector3.Zero());
+      lastState = 1;
     }
     else {
-      lastLeftPos = null;
-      lastRightPos = null;
+      lastState = 0;
     }
-
-    return leftPinch && rightPinch;
   }
 }
 
@@ -400,21 +390,5 @@ function graspEffect() {
     }
   }
 }
-
-
-// function setPhysicsEngin(scene: BABYLON.Scene) {
-//   interface physicsParams {
-//     mass: 0,
-//     friction?: 1,
-//     restitution?: 1
-//   }
-
-//   // Enable physics
-//   scene.enablePhysics(new BABYLON.Vector3(0, -10, 0), new BABYLON.AmmoJSPlugin());
-
-//   return (mesh: BABYLON.Mesh, type: number, options: physicsParams) => {
-//     mesh.physicsImpostor = new BABYLON.PhysicsImpostor(mesh, type, options, scene);
-//   }
-// }
 
 export default createScene;

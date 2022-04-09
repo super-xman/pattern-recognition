@@ -25,8 +25,8 @@ const hands = new Hands({
 
 hands.setOptions({
   maxNumHands: 2, // 手的数量上限
-  modelComplexity: 0.2, // 模型复杂度，0~1
-  minDetectionConfidence: 0.5, // 最小检测置信度，如果score大于阈值才被认为是手
+  modelComplexity: 0.5, // 模型复杂度，0~1
+  minDetectionConfidence: 0.8, // 最小检测置信度，如果score大于阈值才被认为是手
   minTrackingConfidence: 0.5 // todo:有待确认
 });
 

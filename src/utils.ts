@@ -149,6 +149,11 @@ function getAxes(landmarks: number[][], isLeft: boolean): number[][] {
   var vz: number[] = isLeft ? _normVec(vy, ux) : _normVec(ux, vy);
   var vx: number[] = _normVec(vy, vz);
   return [vx, vy, vz];
+  // var vx: number[] = math.subtract(landmarks[17], landmarks[0]) as number[];
+  // var uy: number[] = math.subtract(landmarks[5], landmarks[0]) as number[];
+  // var vz: number[] = isLeft ? _normVec(uy, vx) : _normVec(vx, uy);
+  // var vy: number[] = _normVec(vx, vz);
+  // return [vx, vy, vz];
 }
 
 
@@ -196,21 +201,6 @@ function getOrthJoints(data: number[][], isLeft: boolean): OrthJoints {
 
 
 /**
- * 获取各节手骨长度。
- * @param landmarks 各关节点三维坐标
- * @param connections 活动关节的连接信息
- * @param scale 缩放系数
- * @returns 各手骨长度
- */
-function getBonesLength(landmarks: number[][], connections: number[][], scale = 1): number[] {
-  return connections.map((joints: number[]) => {
-    var vec = math.subtract(landmarks[joints[1]], landmarks[joints[0]]) as math.MathArray;
-    return <number>math.norm(vec) * scale;
-  });
-}
-
-
-/**
  * 根据绕 x,y,z 轴的旋转角度（弧度值）计算整体旋转矩阵。
  * @param rotX 绕 x 轴的旋转角度
  * @param rotY 绕 y 轴的旋转角度
@@ -244,7 +234,7 @@ function getVecsAngle(vec1: number[], vec2: number[]): number {
  */
 function isPinching(landmarks: number[][]) {
   let distance = math.norm(math.subtract(landmarks[4], landmarks[8]) as number[]) as number;
-  return distance < 0.08;
+  return distance < 0.05;
 }
 
 
@@ -266,7 +256,7 @@ function getGraspStrength(landmarks: number[][]) {
   let cos2 = math.divide(math.dot(finger2_0, finger2_1), <number>math.norm(finger2_0) * <number>math.norm(finger2_1));
   let cos3 = math.divide(math.dot(finger3_0, finger3_1), <number>math.norm(finger3_0) * <number>math.norm(finger3_1));
   let cos4 = math.divide(math.dot(finger4_0, finger4_1), <number>math.norm(finger4_0) * <number>math.norm(finger4_1));
-  console.log(math.max(cos1, cos2, cos3, cos4))
+  // console.log(math.max(cos1, cos2, cos3, cos4))
   return math.max(cos1, cos2, cos3, cos4);
 }
 
